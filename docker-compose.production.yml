@@ -1,0 +1,58 @@
+yamlversion: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: deer-flow-backend
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://backend:8000
+    env_file:
+      - .env
+    volumes:
+      - ./conf.yaml:/app/conf.yaml:ro
+      - deer_flow_data:/app/data
+    restart: unless-stopped
+    networks:
+      - deer-flow-network
+      - coolify
+    labels:
+      # Coolify will auto-generate these, but we can customize
+      - "traefik.enable=true"
+      - "traefik.http.services.deer-flow-backend.loadbalancer.server.port=8000"
+      # Health check
+      - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.interval=30s"
+
+  frontend:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.frontend
+      args:
+        - NEXT_PUBLIC_API_URL=$$FRONTEND_URL/api
+    container_name: deer-flow-frontend
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - deer-flow-network
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.deer-flow-frontend.loadbalancer.server.port=3000"
+
+volumes:
+  deer_flow_data:
+    driver: local
+
+networks:
+  deer-flow-network:
+    driver: bridge
+  coolify:
+    external: true
