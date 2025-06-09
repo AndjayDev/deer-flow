@@ -1,4 +1,6 @@
-dockerfile# Multi-stage build for smaller image
+dockerfile
+
+# Multi-stage build for smaller image
 FROM python:3.12-slim as builder
 
 WORKDIR /app
