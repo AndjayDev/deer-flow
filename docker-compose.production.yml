@@ -11,19 +11,18 @@ services:
       # Load configuration from conf.yaml at startup
       - SEARCH_API=${SEARCH_API:-brave_search}
       - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
-      # Add your API keys here
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
       - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
       - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     command: >
       sh -c "
         echo 'Installing Python dependencies...' &&
-        pip install --no-cache-dir PyYAML python-dotenv &&
+        pip install --no-cache-dir PyYAML python-dotenv uvicorn fastapi &&
         echo 'Starting Deer-Flow server...' &&
         python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
@@ -60,8 +59,8 @@ services:
       - NODE_ENV=production
     env_file:
       - .env
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     depends_on:
       - backend
     restart: unless-stopped
