@@ -1,24 +1,40 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-# Install uv.
+# Install system dependencies including Node.js for marp-cli
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    build-essential \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install marp-cli globally for PPT generation
+RUN npm install -g @marp-team/marp-cli
+
+# Copy uv from the base image (already available)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /app
 
-# Pre-cache the application dependencies.
+# Pre-cache the application dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project
 
-# Copy the application into the container.
+# Copy the application into the container
 COPY . /app
 
-# Install the application dependencies.
+# Install the application dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked
 
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 
-# Run the application.
+# Run the application
 CMD ["uv", "run", "python", "server.py", "--host", "0.0.0.0", "--port", "8000"]
