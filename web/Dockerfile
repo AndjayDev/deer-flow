@@ -1,55 +1,49 @@
-##### DEPENDENCIES
+FROM node:22-alpine AS base
 
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat openssl
+# Install pnpm
+RUN npm install -g pnpm
+
+# Dependencies stage
+FROM base AS deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile --production=false
+
+# Builder stage
+FROM base AS builder
 WORKDIR /app
 
-
-# Install dependencies based on the preferred package manager
-
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml\* ./
-
-RUN \
-    if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm ci; \
-    elif [ -f pnpm-lock.yaml ]; then npm install -g pnpm && pnpm i; \
-    else echo "Lockfile not found." && exit 1; \
-    fi
-
-##### BUILDER
-
-FROM node:20-alpine AS builder
-WORKDIR /app
-ARG NEXT_PUBLIC_API_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Build the application
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN \
-    if [ -f yarn.lock ]; then SKIP_ENV_VALIDATION=1 yarn build; \
-    elif [ -f package-lock.json ]; then SKIP_ENV_VALIDATION=1 npm run build; \
-    elif [ -f pnpm-lock.yaml ]; then npm install -g pnpm && SKIP_ENV_VALIDATION=1 pnpm run build; \
-    else echo "Lockfile not found." && exit 1; \
-    fi
+RUN pnpm run build
 
-##### RUNNER
-
-FROM gcr.io/distroless/nodejs20-debian12 AS runner
+# Production stage
+FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-
 ENV NEXT_TELEMETRY_DISABLED=1
 
-COPY --from=builder /app/next.config.js ./
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# Copy built application
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
 
 EXPOSE 3000
-ENV PORT=3000
 
-CMD ["server.js"]
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
