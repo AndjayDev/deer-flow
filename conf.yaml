@@ -1,0 +1,47 @@
+# [!NOTE]
+# Read the `docs/configuration_guide.md` carefully, and update the configurations to match your specific settings and requirements.
+# - Replace `api_key` with your own credentials
+# - Replace `base_url` and `model` name if you want to use a custom model
+
+# LLM Model Configuration
+BASIC_MODEL:
+  # OpenAI Configuration (Recommended)
+  model: "gpt-4o"
+  api_key: "${OPENAI_API_KEY}"
+
+  # base_url: https://ark.cn-beijing.volces.com/api/v3
+  # model: "doubao-1-5-pro-32k-250115"
+  # api_key: xxxx
+  
+  # Alternative: Anthropic Claude
+  # model: "claude-3-sonnet-20240229"
+  # api_key: "${ANTHROPIC_API_KEY}"
+  
+  # Alternative: Local Ollama
+  # model: "ollama/llama2"
+  # base_url: "http://localhost:11434"
+  
+  # Alternative: OpenRouter
+  # model: "openrouter/anthropic/claude-3-sonnet"
+  # api_key: "${OPENROUTER_API_KEY}"
+  # base_url: "https://openrouter.ai/api/v1"
+
+# Research Configuration
+MAX_RESEARCH_STEPS: 10
+ENABLE_HUMAN_IN_LOOP: true
+AUTO_ACCEPT_PLAN: false
+DEFAULT_LANGUAGE: "en"
+
+# Performance Settings
+REQUEST_TIMEOUT: 120
+MAX_CONCURRENT_REQUESTS: 5
+CACHE_TTL: 3600
+
+# Security Settings
+CORS_ORIGINS:
+  - "https://deer-flow.cyberteam.click"
+  - "https://*.cyberteam.click"
+
+# Logging
+LOG_LEVEL: "INFO"
+LOG_FORMAT: "json"
