@@ -21,8 +21,8 @@ services:
       - "8000"
     command: >
       sh -c "
-        echo 'Installing Python dependencies...' &&
-        pip install --no-cache-dir PyYAML python-dotenv uvicorn fastapi langchain-core langchain-community langchain-openai &&
+        echo 'Installing required dependencies...' &&
+        pip install --no-cache-dir PyYAML python-dotenv uvicorn fastapi langchain-core langchain-community langchain-openai langgraph &&
         echo 'Starting Deer-Flow server...' &&
         python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
