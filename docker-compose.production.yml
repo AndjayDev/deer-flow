@@ -19,7 +19,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.services.deer-flow-backend.loadbalancer.server.port=8000"
-      - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.path=/docs"
+      - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.path=/api/rag/config"
       - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.interval=30s"
 
   frontend:
