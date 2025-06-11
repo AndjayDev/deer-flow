@@ -7,6 +7,31 @@ services:
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://backend:8000
+      - PORT=8000
+      # Load configuration from conf.yaml at startup
+      - SEARCH_API=${SEARCH_API:-brave_search}
+      - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
+      # Add your API keys here
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
+      - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
+      - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "
+        pip install --no-cache-dir PyYAML python-dotenv &&
+        python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/rag/config"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
     env_file:
       - .env
     volumes:
