@@ -18,11 +18,11 @@ services:
       - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
       - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
     expose:
-      - "8000:8000"
+      - "8000"
     command: >
       sh -c "
         echo 'Installing Python dependencies...' &&
-        pip install --no-cache-dir PyYAML python-dotenv uvicorn fastapi &&
+        pip install --no-cache-dir PyYAML python-dotenv uvicorn fastapi langchain-core langchain-community langchain-openai &&
         echo 'Starting Deer-Flow server...' &&
         python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
@@ -60,7 +60,7 @@ services:
     env_file:
       - .env
     expose:
-      - "3000:3000"
+      - "3000"
     depends_on:
       - backend
     restart: unless-stopped
