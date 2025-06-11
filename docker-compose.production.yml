@@ -17,7 +17,7 @@ services:
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
       - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
       - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
-    ports:
+    expose:
       - "8000:8000"
     command: >
       sh -c "
@@ -59,7 +59,7 @@ services:
       - NODE_ENV=production
     env_file:
       - .env
-    ports:
+    expose:
       - "3000:3000"
     depends_on:
       - backend
