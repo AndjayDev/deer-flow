@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 # Install marp-cli globally for PPT generation
 RUN npm install -g @marp-team/marp-cli
 
-# Copy uv from the base image (already available)
+# Copy uv from the base image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /app
@@ -29,10 +29,6 @@ COPY . /app
 # Install the application dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked
-
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
 
 EXPOSE 8000
 
