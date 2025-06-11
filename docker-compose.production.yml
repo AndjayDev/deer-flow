@@ -2,7 +2,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: Dockerfile  # Use the main Dockerfile instead
     container_name: deer-flow-backend
     environment:
       - NODE_ENV=production
@@ -17,17 +17,15 @@ services:
       - deer-flow-network
       - coolify
     labels:
-      # Coolify will auto-generate these, but we can customize
       - "traefik.enable=true"
       - "traefik.http.services.deer-flow-backend.loadbalancer.server.port=8000"
-      # Health check
       - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.path=/health"
       - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.interval=30s"
 
   frontend:
     build:
       context: ./web
-      dockerfile: Dockerfile.frontend
+      dockerfile: Dockerfile  # Use the main web Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
     container_name: deer-flow-frontend
