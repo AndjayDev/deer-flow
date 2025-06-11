@@ -22,7 +22,7 @@ services:
     command: >
       sh -c "
         echo 'Installing required dependencies...' &&
-        pip install --no-cache-dir PyYAML python-dotenv uvicorn fastapi langchain-core langchain-community langchain-openai langgraph &&
+        pip install --no-cache-dir PyYAML python-dotenv uvicorn fastapi langchain-core langchain-community langchain-openai langgraph jinja2 &&
         echo 'Starting Deer-Flow server...' &&
         python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
