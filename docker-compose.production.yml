@@ -8,7 +8,6 @@ services:
       - NODE_ENV=production
       - BACKEND_URL=http://backend:8000
       - PORT=8000
-      # Load configuration from conf.yaml at startup
       - SEARCH_API=${SEARCH_API:-brave_search}
       - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -37,7 +36,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-      
     env_file:
       - .env
     volumes:
@@ -45,13 +43,7 @@ services:
       - deer_flow_data:/app/data
     restart: unless-stopped
     networks:
-      - deer-flow-network
       - coolify
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.services.deer-flow-backend.loadbalancer.server.port=8000"
-      - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.path=/api/rag/config"
-      - "traefik.http.services.deer-flow-backend.loadbalancer.healthcheck.interval=30s"
 
   frontend:
     build:
@@ -70,18 +62,12 @@ services:
       - backend
     restart: unless-stopped
     networks:
-      - deer-flow-network
       - coolify
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.services.deer-flow-frontend.loadbalancer.server.port=3000"
 
 volumes:
   deer_flow_data:
     driver: local
 
 networks:
-  deer-flow-network:
-    driver: bridge
   coolify:
     external: true
