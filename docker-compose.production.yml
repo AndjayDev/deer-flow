@@ -28,8 +28,8 @@ services:
         echo 'Installing additional visual and automation dependencies...' &&
         uv add matplotlib seaborn plotly pillow beautifulsoup4 selenium webdriver-manager mermaid-py diagrams graphviz python-pptx openpyxl xlsxwriter &&
         echo 'All dependencies installed for advanced research & automation!' &&
-        echo 'Starting DeerFlow server...' &&
-        python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
+        echo 'Starting DeerFlow server with UV environment...' &&
+        uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/rag/config"]
