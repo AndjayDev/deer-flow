@@ -20,9 +20,11 @@ services:
       - "8000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.deerflow-api.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.deerflow-api.entrypoints=https"
-      - "traefik.http.services.deerflow-api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.deerflow-backend-api.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.deerflow-backend-api.entrypoints=websecure"
+      - "traefik.http.routers.deerflow-backend-api.tls=true"
+      - "traefik.http.routers.deerflow-backend-api.priority=100"
+      - "traefik.http.services.deerflow-backend-api.loadbalancer.server.port=8000"
     command: >
       sh -c "
         echo 'Installing UV package manager (recommended by DeerFlow)...' &&
