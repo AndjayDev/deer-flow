@@ -51,8 +51,8 @@ services:
       context: ./web
       dockerfile: Dockerfile.frontend
       args:
-      - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api  # Browser-accessible URL
-      - API_URL=http://backend:8000/api  # Internal container communication
+        - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
+        - API_URL=http://backend:8000/api
     container_name: deer-flow-frontend
     environment:
       - NODE_ENV=production
