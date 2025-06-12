@@ -23,9 +23,11 @@ services:
       sh -c "
         echo 'Installing UV package manager (recommended by DeerFlow)...' &&
         pip install --no-cache-dir uv &&
-        echo 'Installing all project dependencies from pyproject.toml...' &&
+        echo 'Installing core project dependencies from pyproject.toml...' &&
         uv sync &&
-        echo 'All 24+ dependencies installed successfully from pyproject.toml!' &&
+        echo 'Installing additional visual and automation dependencies...' &&
+        uv add matplotlib seaborn plotly pillow beautifulsoup4 selenium webdriver-manager mermaid-py diagrams graphviz python-pptx openpyxl xlsxwriter &&
+        echo 'All dependencies installed for advanced research & automation!' &&
         echo 'Starting DeerFlow server...' &&
         python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
