@@ -16,6 +16,12 @@ services:
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
       - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
       - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+      - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT}
+    env_file:
+      - .env
     expose:
       - "8000"
     labels:
@@ -38,11 +44,11 @@ services:
         uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/rag/config"]
+      test: ["CMD", "python", "-c", "import requests; import os; r = requests.get('http://localhost:8000/api/rag/config'); exit(0 if r.status_code == 200 and os.getenv('OPENAI_API_KEY') else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     env_file:
       - .env
     volumes:
