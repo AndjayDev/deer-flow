@@ -21,12 +21,12 @@ services:
       - "8000"
     command: >
       sh -c "
-        echo 'Installing UV package manager...' &&
+        echo 'Installing UV package manager (recommended by DeerFlow)...' &&
         pip install --no-cache-dir uv &&
         echo 'Installing all project dependencies from pyproject.toml...' &&
-        uv pip install -e . &&
-        echo 'Dependencies installed successfully!' &&
-        echo 'Starting Deer-Flow server...' &&
+        uv sync &&
+        echo 'All 24+ dependencies installed successfully from pyproject.toml!' &&
+        echo 'Starting DeerFlow server...' &&
         python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
     healthcheck:
