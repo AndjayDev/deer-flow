@@ -8,7 +8,7 @@ services:
       - NODE_ENV=production
       - BACKEND_URL=http://backend:8000
       - PORT=8000
-      - SEARCH_API=${SEARCH_API:-brave_search}
+      - SEARCH_API=${SEARCH_API:-tavily}
       - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -43,6 +43,7 @@ services:
       - deer_flow_data:/app/data
     restart: unless-stopped
     networks:
+      - deer-flow-network
       - coolify
 
   frontend:
@@ -59,9 +60,11 @@ services:
     expose:
       - "3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     networks:
+      - deer-flow-network
       - coolify
 
 volumes:
@@ -69,5 +72,7 @@ volumes:
     driver: local
 
 networks:
+  deer-flow-network:
+    driver: bridge
   coolify:
     external: true
