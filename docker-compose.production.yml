@@ -29,23 +29,54 @@ services:
       - "traefik.enable=true"
       # 🔥 CRITICAL: Specify Coolify network for Traefik
       - "traefik.docker.network=coolify"
-      # Backend Router - HIGH PRIORITY for API paths
-      - "traefik.http.routers.deer-backend.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.deer-backend.entrypoints=websecure"
-      - "traefik.http.routers.deer-backend.tls=true"
-      - "traefik.http.routers.deer-backend.priority=1000"
-      - "traefik.http.routers.deer-backend.service=deer-backend"
+      # 🔧 FIX: Use specific path matching instead of PathPrefix to avoid stripping
+      # Backend Router for /api/rag/config endpoint
+      - "traefik.http.routers.deer-backend-rag.rule=Host(`deer-flow.cyberteam.click`) && Path(`/api/rag/config`)"
+      - "traefik.http.routers.deer-backend-rag.entrypoints=websecure"
+      - "traefik.http.routers.deer-backend-rag.tls=true"
+      - "traefik.http.routers.deer-backend-rag.priority=2000"
+      - "traefik.http.routers.deer-backend-rag.service=deer-backend"
+      
+      # Backend Router for /api/chat/stream endpoint
+      - "traefik.http.routers.deer-backend-chat.rule=Host(`deer-flow.cyberteam.click`) && Path(`/api/chat/stream`)"
+      - "traefik.http.routers.deer-backend-chat.entrypoints=websecure"
+      - "traefik.http.routers.deer-backend-chat.tls=true"
+      - "traefik.http.routers.deer-backend-chat.priority=1900"
+      - "traefik.http.routers.deer-backend-chat.service=deer-backend"
+      - "traefik.http.routers.deer-backend-chat.middlewares=deer-no-buffer"
+      
+      # Backend Router for all other /api/* endpoints
+      - "traefik.http.routers.deer-backend-api.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api/`)"
+      - "traefik.http.routers.deer-backend-api.entrypoints=websecure"
+      - "traefik.http.routers.deer-backend-api.tls=true"
+      - "traefik.http.routers.deer-backend-api.priority=1000"
+      - "traefik.http.routers.deer-backend-api.service=deer-backend"
+      
       # Backend Service Configuration
       - "traefik.http.services.deer-backend.loadbalancer.server.port=8000"
-      # 🔧 FIX: Preserve /api prefix and disable buffering
-      - "traefik.http.routers.deer-backend.middlewares=deer-api-middleware,deer-no-buffer"
-      # Keep /api prefix when forwarding to backend
-      - "traefik.http.middlewares.deer-api-middleware.stripprefix.prefixes="
-      # Streaming Middleware - NO BUFFERING for SSE
+      
+      # 🔧 STREAMING: No buffering middleware for real-time responses
       - "traefik.http.middlewares.deer-no-buffer.buffering.maxRequestBodyBytes=0"
       - "traefik.http.middlewares.deer-no-buffer.buffering.maxResponseBodyBytes=0"
       - "traefik.http.middlewares.deer-no-buffer.buffering.memRequestBodyBytes=0"
       - "traefik.http.middlewares.deer-no-buffer.buffering.memResponseBodyBytes=0"
+
+# 🎯 EXPLANATION OF THE FIX:
+# 
+# 1. **Specific Path Matching**: Instead of using PathPrefix(`/api`) which strips the prefix,
+#    we use specific Path() matches for critical endpoints
+#
+# 2. **Priority System**: 
+#    - `/api/rag/config` = Priority 2000 (highest)
+#    - `/api/chat/stream` = Priority 1900 (high, with no-buffer middleware)
+#    - All other `/api/*` = Priority 1000 (catchall)
+#
+# 3. **No Path Stripping**: By using Path() instead of PathPrefix(), 
+#    Traefik forwards the COMPLETE URL including `/api` to the backend
+#
+# 4. **Streaming Support**: The chat endpoint gets special no-buffer middleware
+#    for real-time streaming responses
+
     command: >
       sh -c "
         echo '🦌 Installing UV package manager...' &&
