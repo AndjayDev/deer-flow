@@ -30,7 +30,10 @@ services:
       - "traefik.http.routers.deerflow-backend-api.entrypoints=websecure"
       - "traefik.http.routers.deerflow-backend-api.tls=true"
       - "traefik.http.routers.deerflow-backend-api.priority=100"
+      - "traefik.http.routers.deerflow-backend-api.middlewares=deerflow-stream"
       - "traefik.http.services.deerflow-backend-api.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.deerflow-stream.buffering.retryExpression=IsNetworkError() && Attempts() <= 2"
+      - "traefik.http.middlewares.deerflow-stream.buffering.memRequestBodyBytes=0"
     command: >
       sh -c "
         echo 'Installing UV package manager...' &&
