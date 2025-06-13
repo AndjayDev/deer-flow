@@ -26,14 +26,20 @@ services:
       - "8000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.deerflow-backend-api.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.deerflow-backend-api.entrypoints=websecure"
-      - "traefik.http.routers.deerflow-backend-api.tls=true"
-      - "traefik.http.routers.deerflow-backend-api.priority=100"
-      - "traefik.http.routers.deerflow-backend-api.middlewares=deerflow-stream"
-      - "traefik.http.services.deerflow-backend-api.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.deerflow-stream.buffering.retryExpression=IsNetworkError() && Attempts() <= 2"
-      - "traefik.http.middlewares.deerflow-stream.buffering.memRequestBodyBytes=0"
+      # Backend Router - HIGH PRIORITY for API paths
+      - "traefik.http.routers.deer-backend.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.deer-backend.entrypoints=websecure"
+      - "traefik.http.routers.deer-backend.tls=true"
+      - "traefik.http.routers.deer-backend.priority=1000"
+      - "traefik.http.routers.deer-backend.service=deer-backend-service"
+      # Backend Service Configuration
+      - "traefik.http.services.deer-backend-service.loadbalancer.server.port=8000"
+      # Streaming Middleware - NO BUFFERING for SSE
+      - "traefik.http.routers.deer-backend.middlewares=deer-no-buffer"
+      - "traefik.http.middlewares.deer-no-buffer.buffering.maxRequestBodyBytes=0"
+      - "traefik.http.middlewares.deer-no-buffer.buffering.maxResponseBodyBytes=0"
+      - "traefik.http.middlewares.deer-no-buffer.buffering.memRequestBodyBytes=0"
+      - "traefik.http.middlewares.deer-no-buffer.buffering.memResponseBodyBytes=0"
     command: >
       sh -c "
         echo 'Installing UV package manager...' &&
@@ -75,11 +81,14 @@ services:
       - "3000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.deerflow-frontend.rule=Host(`deer-flow.cyberteam.click`)"
-      - "traefik.http.routers.deerflow-frontend.entrypoints=websecure"
-      - "traefik.http.routers.deerflow-frontend.tls=true"
-      - "traefik.http.routers.deerflow-frontend.priority=50"
-      - "traefik.http.services.deerflow-frontend.loadbalancer.server.port=3000"
+      # Frontend Router - LOWER PRIORITY for root domain
+      - "traefik.http.routers.deer-frontend.rule=Host(`deer-flow.cyberteam.click`)"
+      - "traefik.http.routers.deer-frontend.entrypoints=websecure"
+      - "traefik.http.routers.deer-frontend.tls=true"
+      - "traefik.http.routers.deer-frontend.priority=100"
+      - "traefik.http.routers.deer-frontend.service=deer-frontend-service"
+      # Frontend Service Configuration
+      - "traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000"
     depends_on:
       backend:
         condition: service_healthy
