@@ -47,4 +47,4 @@ services:
 
 networks:
   deerflow-network:
-    external: true
+    driver: bridge
