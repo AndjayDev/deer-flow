@@ -7,13 +7,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8000
-      # API Configuration - PUBLIC URLs for external access
       - BACKEND_URL=https://deer-flow.cyberteam.click/api
       - API_BASE_URL=https://deer-flow.cyberteam.click/api
-      # Search and RAG Configuration
       - SEARCH_API=${SEARCH_API:-tavily}
       - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
-      # API Keys from .env file
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
@@ -21,7 +18,6 @@ services:
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
       - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
       - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
-      # Monitoring
       - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
       - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT}
@@ -31,14 +27,16 @@ services:
       - "8000"
     labels:
       - "traefik.enable=true"
+      # 🔥 CRITICAL: Specify Coolify network for Traefik
+      - "traefik.docker.network=coolify"
       # Backend Router - HIGH PRIORITY for API paths
       - "traefik.http.routers.deer-backend.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
       - "traefik.http.routers.deer-backend.entrypoints=websecure"
       - "traefik.http.routers.deer-backend.tls=true"
       - "traefik.http.routers.deer-backend.priority=1000"
-      - "traefik.http.routers.deer-backend.service=deer-backend-service"
+      - "traefik.http.routers.deer-backend.service=deer-backend"
       # Backend Service Configuration
-      - "traefik.http.services.deer-backend-service.loadbalancer.server.port=8000"
+      - "traefik.http.services.deer-backend.loadbalancer.server.port=8000"
       # Streaming Middleware - NO BUFFERING for SSE
       - "traefik.http.routers.deer-backend.middlewares=deer-no-buffer"
       - "traefik.http.middlewares.deer-no-buffer.buffering.maxRequestBodyBytes=0"
@@ -75,13 +73,11 @@ services:
       context: ./web
       dockerfile: Dockerfile.frontend
       args:
-        # Frontend Build Args - CRITICAL for Next.js API calls
         - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
         - API_URL=https://deer-flow.cyberteam.click/api
     container_name: deer-flow-frontend
     environment:
       - NODE_ENV=production
-      # Runtime Environment Variables
       - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
       - API_URL=https://deer-flow.cyberteam.click/api
     env_file:
@@ -90,14 +86,16 @@ services:
       - "3000"
     labels:
       - "traefik.enable=true"
+      # 🔥 CRITICAL: Specify Coolify network for Traefik
+      - "traefik.docker.network=coolify"
       # Frontend Router - LOWER PRIORITY for root domain
       - "traefik.http.routers.deer-frontend.rule=Host(`deer-flow.cyberteam.click`)"
       - "traefik.http.routers.deer-frontend.entrypoints=websecure"
       - "traefik.http.routers.deer-frontend.tls=true"
       - "traefik.http.routers.deer-frontend.priority=100"
-      - "traefik.http.routers.deer-frontend.service=deer-frontend-service"
+      - "traefik.http.routers.deer-frontend.service=deer-frontend"
       # Frontend Service Configuration
-      - "traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000"
+      - "traefik.http.services.deer-frontend.loadbalancer.server.port=3000"
     depends_on:
       backend:
         condition: service_healthy
