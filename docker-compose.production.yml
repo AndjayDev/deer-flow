@@ -12,13 +12,13 @@ services:
       - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
       - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
       - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
       - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
       - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
-      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT}
     env_file:
       - .env
@@ -33,24 +33,21 @@ services:
       - "traefik.http.services.deerflow-backend-api.loadbalancer.server.port=8000"
     command: >
       sh -c "
-        echo 'Installing UV package manager (recommended by DeerFlow)...' &&
+        echo 'Installing UV package manager...' &&
         pip install --no-cache-dir uv &&
-        echo 'Installing core project dependencies from pyproject.toml...' &&
+        echo 'Installing dependencies from pyproject.toml...' &&
         uv sync &&
-        echo 'Installing additional visual and automation dependencies...' &&
+        echo 'Installing additional research dependencies...' &&
         uv add matplotlib seaborn plotly pillow beautifulsoup4 selenium webdriver-manager mermaid-py diagrams graphviz python-pptx openpyxl xlsxwriter &&
-        echo 'All dependencies installed for advanced research & automation!' &&
-        echo 'Starting DeerFlow server with UV environment...' &&
+        echo 'Starting DeerFlow server...' &&
         uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
       "
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; import os; r = requests.get('http://localhost:8000/api/rag/config'); exit(0 if r.status_code == 200 and os.getenv('OPENAI_API_KEY') else 1)"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/rag/config"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-    env_file:
-      - .env
     volumes:
       - ./conf.yaml:/app/conf.yaml:ro
       - deer_flow_data:/app/data
@@ -73,6 +70,13 @@ services:
       - .env
     expose:
       - "3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.deerflow-frontend.rule=Host(`deer-flow.cyberteam.click`)"
+      - "traefik.http.routers.deerflow-frontend.entrypoints=websecure"
+      - "traefik.http.routers.deerflow-frontend.tls=true"
+      - "traefik.http.routers.deerflow-frontend.priority=50"
+      - "traefik.http.services.deerflow-frontend.loadbalancer.server.port=3000"
     depends_on:
       backend:
         condition: service_healthy
