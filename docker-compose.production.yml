@@ -7,8 +7,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=8000
-      - BACKEND_URL=https://deer-flow.cyberteam.click/api
-      - API_BASE_URL=https://deer-flow.cyberteam.click/api
+      - BACKEND_URL=https://api.deer-flow.cyberteam.click
+      - API_BASE_URL=https://api.deer-flow.cyberteam.click
       - SEARCH_API=${SEARCH_API:-tavily}
       - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -29,28 +29,12 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=coolify"
       
-      # 🔧 SOLUTION: Use PathPrefix with StripPrefix middleware
-      # This preserves the /api path when forwarding to backend
-      - "traefik.http.routers.deer-backend.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
+# 🎯 SIMPLE & CLEAN: Route entire subdomain to backend
+      - "traefik.http.routers.deer-backend.rule=Host(`api.deer-flow.cyberteam.click`)"
       - "traefik.http.routers.deer-backend.entrypoints=websecure"
       - "traefik.http.routers.deer-backend.tls=true"
-      - "traefik.http.routers.deer-backend.priority=1000"
       - "traefik.http.routers.deer-backend.service=deer-backend"
-      
-      # 🎯 KEY FIX: Do NOT strip the prefix - let backend handle /api routes
-      # Remove any StripPrefix middleware to keep the full path
-      
-      # Service configuration
       - "traefik.http.services.deer-backend.loadbalancer.server.port=8000"
-      
-      # 🔧 STREAMING: No buffering for real-time chat responses
-      - "traefik.http.middlewares.deer-no-buffer.buffering.maxRequestBodyBytes=0"
-      - "traefik.http.middlewares.deer-no-buffer.buffering.maxResponseBodyBytes=0"
-      - "traefik.http.middlewares.deer-no-buffer.buffering.memRequestBodyBytes=0"
-      - "traefik.http.middlewares.deer-no-buffer.buffering.memResponseBodyBytes=0"
-      
-      # Apply no-buffer middleware to streaming endpoints
-      - "traefik.http.routers.deer-backend.middlewares=deer-no-buffer"
 
     command: >
       sh -c "
