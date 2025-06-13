@@ -37,8 +37,11 @@ services:
       - "traefik.http.routers.deer-backend.service=deer-backend"
       # Backend Service Configuration
       - "traefik.http.services.deer-backend.loadbalancer.server.port=8000"
+      # 🔧 FIX: Preserve /api prefix and disable buffering
+      - "traefik.http.routers.deer-backend.middlewares=deer-api-middleware,deer-no-buffer"
+      # Keep /api prefix when forwarding to backend
+      - "traefik.http.middlewares.deer-api-middleware.stripprefix.prefixes="
       # Streaming Middleware - NO BUFFERING for SSE
-      - "traefik.http.routers.deer-backend.middlewares=deer-no-buffer"
       - "traefik.http.middlewares.deer-no-buffer.buffering.maxRequestBodyBytes=0"
       - "traefik.http.middlewares.deer-no-buffer.buffering.maxResponseBodyBytes=0"
       - "traefik.http.middlewares.deer-no-buffer.buffering.memRequestBodyBytes=0"
