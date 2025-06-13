@@ -26,25 +26,48 @@ services:
     expose:
       - "8000"
     labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=coolify"
+# BACKEND LABELS - Add to your docker-compose.production.yml
+# Using EXACT Coolify/Traefik syntax (no quotes unless complex rules)
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: deer-flow-backend
+    environment:
+      # Your environment variables here
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
       
-      # 🚨 EMERGENCY: Path-based routing (for current frontend)
-      - "traefik.http.routers.deer-backend-path.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.deer-backend-path.entrypoints=websecure"
-      - "traefik.http.routers.deer-backend-path.tls=true"
-      - "traefik.http.routers.deer-backend-path.priority=100"
-      - "traefik.http.routers.deer-backend-path.service=deer-backend"
+      # 🚨 IMMEDIATE FIX: Path-based routing (works right now)
+      - traefik.http.routers.deer-backend-api.entryPoints=websecure
+      - traefik.http.routers.deer-backend-api.middlewares=gzip
+      - 'traefik.http.routers.deer-backend-api.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
+      - traefik.http.routers.deer-backend-api.service=deer-backend-api
+      - traefik.http.routers.deer-backend-api.tls=true
+      - traefik.http.services.deer-backend-api.loadbalancer.server.port=8000
       
-      # 🎯 FUTURE: Subdomain routing (when DNS + frontend are ready)
-      - "traefik.http.routers.deer-backend-subdomain.rule=Host(`api.deer-flow.cyberteam.click`)"
-      - "traefik.http.routers.deer-backend-subdomain.entrypoints=websecure"
-      - "traefik.http.routers.deer-backend-subdomain.tls=true"
-      - "traefik.http.routers.deer-backend-subdomain.priority=200"
-      - "traefik.http.routers.deer-backend-subdomain.service=deer-backend"
+      # 🎯 FUTURE: Subdomain routing (when DNS works)
+      - traefik.http.routers.deer-backend-subdomain.entryPoints=websecure  
+      - traefik.http.routers.deer-backend-subdomain.middlewares=gzip
+      - traefik.http.routers.deer-backend-subdomain.rule=Host(`api.deer-flow.cyberteam.click`)
+      - traefik.http.routers.deer-backend-subdomain.service=deer-backend-subdomain
+      - traefik.http.routers.deer-backend-subdomain.tls=true
+      - traefik.http.services.deer-backend-subdomain.loadbalancer.server.port=8000
       
-      # 📡 SERVICE: Backend service definition
-      - "traefik.http.services.deer-backend.loadbalancer.server.port=8000"
+      # 📡 COOLIFY METADATA (copy from your working example)
+      - caddy_ingress_network=coolify
+      - coolify.managed=true
+      - coolify.version=4.0.0-beta.390
+      - coolify.applicationId=1
+      - coolify.type=application
+      - coolify.name=deer-flow-backend
+      - coolify.resourceName=deer-flow-backend
+      - coolify.projectName=deer-flow
+      - coolify.serviceName=deer-flow-backend
+      - coolify.environmentName=production
+      - coolify.pullRequestId=0
 
     command: >
       sh -c "
@@ -88,17 +111,29 @@ services:
     expose:
       - "3000"
     labels:
-      - "traefik.enable=true"
-      # 🔥 CRITICAL: Specify Coolify network for Traefik
-      - "traefik.docker.network=coolify"
-      # Frontend Router - LOWER PRIORITY for root domain
-      - "traefik.http.routers.deer-frontend.rule=Host(`deer-flow.cyberteam.click`)"
-      - "traefik.http.routers.deer-frontend.entrypoints=websecure"
-      - "traefik.http.routers.deer-frontend.tls=true"
-      - "traefik.http.routers.deer-frontend.priority=100"
-      - "traefik.http.routers.deer-frontend.service=deer-frontend"
-      # Frontend Service Configuration
-      - "traefik.http.services.deer-frontend.loadbalancer.server.port=3000"
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.middlewares.gzip.compress=true
+      - traefik.http.routers.deer-frontend.entryPoints=websecure
+      - traefik.http.routers.deer-frontend.middlewares=gzip
+      - traefik.http.routers.deer-frontend.rule=Host(`deer-flow.cyberteam.click`)
+      - traefik.http.routers.deer-frontend.service=deer-frontend
+      - traefik.http.routers.deer-frontend.tls=true
+      - traefik.http.routers.deer-frontend.priority=50
+      - traefik.http.services.deer-frontend.loadbalancer.server.port=3000
+      
+      # 📡 COOLIFY METADATA
+      - caddy_ingress_network=coolify
+      - coolify.managed=true
+      - coolify.version=4.0.0-beta.390
+      - coolify.applicationId=1
+      - coolify.type=application
+      - coolify.name=deer-flow-frontend
+      - coolify.resourceName=deer-flow-frontend
+      - coolify.projectName=deer-flow
+      - coolify.serviceName=deer-flow-frontend  
+      - coolify.environmentName=production
+      - coolify.pullRequestId=0
     depends_on:
       backend:
         condition: service_healthy
