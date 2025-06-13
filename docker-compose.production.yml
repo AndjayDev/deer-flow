@@ -6,10 +6,14 @@ services:
     container_name: deer-flow-backend
     environment:
       - NODE_ENV=production
-      - BACKEND_URL=http://backend:8000
       - PORT=8000
+      # API Configuration - PUBLIC URLs for external access
+      - BACKEND_URL=https://deer-flow.cyberteam.click/api
+      - API_BASE_URL=https://deer-flow.cyberteam.click/api
+      # Search and RAG Configuration
       - SEARCH_API=${SEARCH_API:-tavily}
       - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
+      # API Keys from .env file
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
@@ -17,6 +21,7 @@ services:
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
       - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
       - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
+      # Monitoring
       - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
       - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT}
@@ -42,21 +47,21 @@ services:
       - "traefik.http.middlewares.deer-no-buffer.buffering.memResponseBodyBytes=0"
     command: >
       sh -c "
-        echo 'Installing UV package manager...' &&
+        echo '🦌 Installing UV package manager...' &&
         pip install --no-cache-dir uv &&
-        echo 'Installing dependencies from pyproject.toml...' &&
+        echo '🦌 Installing core dependencies from pyproject.toml...' &&
         uv sync &&
-        echo 'Installing additional research dependencies...' &&
+        echo '🦌 Installing additional research dependencies...' &&
         uv add matplotlib seaborn plotly pillow beautifulsoup4 selenium webdriver-manager mermaid-py diagrams graphviz python-pptx openpyxl xlsxwriter &&
-        echo 'Starting DeerFlow server...' &&
-        uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
+        echo '🦌 Starting DeerFlow Backend Server on port 8000...' &&
+        uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000 --log-level info
       "
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/rag/config"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 90s
     volumes:
       - ./conf.yaml:/app/conf.yaml:ro
       - deer_flow_data:/app/data
@@ -70,11 +75,15 @@ services:
       context: ./web
       dockerfile: Dockerfile.frontend
       args:
+        # Frontend Build Args - CRITICAL for Next.js API calls
         - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
-        - API_URL=http://backend:8000/api
+        - API_URL=https://deer-flow.cyberteam.click/api
     container_name: deer-flow-frontend
     environment:
       - NODE_ENV=production
+      # Runtime Environment Variables
+      - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
+      - API_URL=https://deer-flow.cyberteam.click/api
     env_file:
       - .env
     expose:
