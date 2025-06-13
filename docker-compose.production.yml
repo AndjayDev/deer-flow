@@ -1,50 +1,99 @@
 services:
-  deerflow-frontend:
+  backend:
     build:
-      context: ./web
+      context: .
       dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
+    container_name: deer-flow-backend
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
+      - BACKEND_URL=http://backend:8000
+      - PORT=8000
+      - SEARCH_API=${SEARCH_API:-tavily}
+      - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
+      - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
+      - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+      - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT}
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.deerflow-backend-api.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.deerflow-backend-api.entrypoints=websecure"
+      - "traefik.http.routers.deerflow-backend-api.tls=true"
+      - "traefik.http.routers.deerflow-backend-api.priority=100"
+      - "traefik.http.routers.deerflow-backend-api.middlewares=deerflow-stream"
+      - "traefik.http.services.deerflow-backend-api.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.deerflow-stream.buffering.retryExpression=IsNetworkError() && Attempts() <= 2"
+      - "traefik.http.middlewares.deerflow-stream.buffering.memRequestBodyBytes=0"
+    command: >
+      sh -c "
+        echo 'Installing UV package manager...' &&
+        pip install --no-cache-dir uv &&
+        echo 'Installing dependencies from pyproject.toml...' &&
+        uv sync &&
+        echo 'Installing additional research dependencies...' &&
+        uv add matplotlib seaborn plotly pillow beautifulsoup4 selenium webdriver-manager mermaid-py diagrams graphviz python-pptx openpyxl xlsxwriter &&
+        echo 'Starting DeerFlow server...' &&
+        uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/rag/config"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./conf.yaml:/app/conf.yaml:ro
+      - deer_flow_data:/app/data
+    restart: unless-stopped
     networks:
-      - deerflow-network
+      - deer-flow-network
+      - coolify
+
+  frontend:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.frontend
+      args:
+        - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
+        - API_URL=http://backend:8000/api
+    container_name: deer-flow-frontend
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    expose:
+      - "3000"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.deerflow-frontend.rule=Host(`deer-flow.cyberteam.click`)"
       - "traefik.http.routers.deerflow-frontend.entrypoints=websecure"
       - "traefik.http.routers.deerflow-frontend.tls=true"
-      - "traefik.http.routers.deerflow-frontend.priority=10"
+      - "traefik.http.routers.deerflow-frontend.priority=50"
       - "traefik.http.services.deerflow-frontend.loadbalancer.server.port=3000"
-
-  deerflow-backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      - NODE_ENV=production
-    env_file:
-      - .env
-    volumes:
-      - ./conf.yaml:/app/conf.yaml:ro
-    networks:
-      - deerflow-network
     depends_on:
-      - deerflow-frontend
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.deerflow-backend.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.deerflow-backend.entrypoints=websecure"
-      - "traefik.http.routers.deerflow-backend.tls=true"
-      - "traefik.http.routers.deerflow-backend.priority=100"
-      - "traefik.http.routers.deerflow-backend.middlewares=deerflow-nostream"
-      - "traefik.http.services.deerflow-backend.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.deerflow-nostream.buffering.maxRequestBodyBytes=0"
-      - "traefik.http.middlewares.deerflow-nostream.buffering.maxResponseBodyBytes=0"
-      - "traefik.http.middlewares.deerflow-nostream.buffering.memRequestBodyBytes=0"
-      - "traefik.http.middlewares.deerflow-nostream.buffering.memResponseBodyBytes=0"
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - deer-flow-network
+      - coolify
+
+volumes:
+  deer_flow_data:
+    driver: local
 
 networks:
-  deerflow-network:
+  deer-flow-network:
     driver: bridge
+  coolify:
+    external: true
