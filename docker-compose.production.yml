@@ -1,8 +1,10 @@
 services:
   deerflow-frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile.production
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
@@ -19,7 +21,7 @@ services:
   deerflow-backend:
     build:
       context: .
-      dockerfile: Dockerfile.production
+      dockerfile: Dockerfile
     environment:
       - NODE_ENV=production
     env_file:
