@@ -26,24 +26,24 @@ services:
     expose:
       - "8000"
     labels:
-      # 🚨 COOLIFY OVERRIDE: Let Coolify handle basic routing
+      # 🚨 TRAEFIK CORE CONFIG
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
       
-      # 🎯 CUSTOM API ROUTING: Force /api/* to backend
-      - 'traefik.http.routers.deer-backend-api.entryPoints=websecure'
-      - 'traefik.http.routers.deer-backend-api.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
-      - 'traefik.http.routers.deer-backend-api.service=deer-backend-api'
-      - 'traefik.http.routers.deer-backend-api.tls=true'
-      - 'traefik.http.routers.deer-backend-api.priority=100'
-      - 'traefik.http.services.deer-backend-api.loadbalancer.server.port=8000'
+      # 🎯 API ROUTING (HTTPS)
+      - 'traefik.http.routers.deer-api-https.entryPoints=https'
+      - 'traefik.http.routers.deer-api-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
+      - 'traefik.http.routers.deer-api-https.service=deer-api-service'
+      - 'traefik.http.routers.deer-api-https.tls=true'
+      - 'traefik.http.routers.deer-api-https.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.deer-api-https.priority=200'
+      - 'traefik.http.services.deer-api-service.loadbalancer.server.port=8000'
       
-      # 🚀 SUBDOMAIN ROUTING: For future use
-      - 'traefik.http.routers.deer-backend-subdomain.entryPoints=websecure'
-      - 'traefik.http.routers.deer-backend-subdomain.rule=Host(`api.deer-flow.cyberteam.click`)'
-      - 'traefik.http.routers.deer-backend-subdomain.service=deer-backend-subdomain'
-      - 'traefik.http.routers.deer-backend-subdomain.tls=true'
-      - 'traefik.http.services.deer-backend-subdomain.loadbalancer.server.port=8000'
+      # 🔄 HTTP TO HTTPS REDIRECT
+      - 'traefik.http.routers.deer-api-http.entryPoints=http'
+      - 'traefik.http.routers.deer-api-http.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
+      - 'traefik.http.routers.deer-api-http.middlewares=redirect-to-https'
+      - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
       
     command: >
       sh -c "
@@ -87,17 +87,23 @@ services:
     expose:
       - "3000"
     labels:
-      # 🚨 COOLIFY STANDARD: Let Coolify auto-configure most settings
+      # 🚨 TRAEFIK CORE CONFIG
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
       
-      # 🎯 FRONTEND ROUTING: Lower priority than API
-      - 'traefik.http.routers.deer-frontend.entryPoints=websecure'
-      - 'traefik.http.routers.deer-frontend.rule=Host(`deer-flow.cyberteam.click`)'
-      - 'traefik.http.routers.deer-frontend.service=deer-frontend'
-      - 'traefik.http.routers.deer-frontend.tls=true'
-      - 'traefik.http.routers.deer-frontend.priority=50'
-      - 'traefik.http.services.deer-frontend.loadbalancer.server.port=3000'
+      # 🎯 FRONTEND ROUTING (HTTPS)
+      - 'traefik.http.routers.deer-frontend-https.entryPoints=https'
+      - 'traefik.http.routers.deer-frontend-https.rule=Host(`deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-frontend-https.service=deer-frontend-service'
+      - 'traefik.http.routers.deer-frontend-https.tls=true'
+      - 'traefik.http.routers.deer-frontend-https.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.deer-frontend-https.priority=50'
+      - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
+      
+      # 🔄 HTTP TO HTTPS REDIRECT
+      - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
+      - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
       
     depends_on:
       backend:
