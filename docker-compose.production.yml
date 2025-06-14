@@ -41,20 +41,20 @@ services:
       - traefik.docker.network=coolify
       
       # 🚨 IMMEDIATE FIX: Path-based routing (works right now)
-      - traefik.http.routers.deer-backend-api.entryPoints=websecure
-      - traefik.http.routers.deer-backend-api.middlewares=gzip
+      - 'traefik.http.routers.deer-backend-api.entryPoints=websecure'
+      - 'traefik.http.routers.deer-backend-api.middlewares=gzip'
       - 'traefik.http.routers.deer-backend-api.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
-      - traefik.http.routers.deer-backend-api.service=deer-backend-api
-      - traefik.http.routers.deer-backend-api.tls=true
-      - traefik.http.services.deer-backend-api.loadbalancer.server.port=8000
+      - 'traefik.http.routers.deer-backend-api.service=deer-backend-api'
+      - 'traefik.http.routers.deer-backend-api.tls=true'
+      - 'traefik.http.services.deer-backend-api.loadbalancer.server.port=8000'
       
       # 🎯 FUTURE: Subdomain routing (when DNS works)
-      - traefik.http.routers.deer-backend-subdomain.entryPoints=websecure  
-      - traefik.http.routers.deer-backend-subdomain.middlewares=gzip
-      - traefik.http.routers.deer-backend-subdomain.rule=Host(`api.deer-flow.cyberteam.click`)
-      - traefik.http.routers.deer-backend-subdomain.service=deer-backend-subdomain
-      - traefik.http.routers.deer-backend-subdomain.tls=true
-      - traefik.http.services.deer-backend-subdomain.loadbalancer.server.port=8000
+      - 'traefik.http.routers.deer-backend-subdomain.entryPoints=websecure'
+      - 'traefik.http.routers.deer-backend-subdomain.middlewares=gzip'
+      - 'traefik.http.routers.deer-backend-subdomain.rule=Host(`api.deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-backend-subdomain.service=deer-backend-subdomain'
+      - 'traefik.http.routers.deer-backend-subdomain.tls=true'
+      - 'traefik.http.services.deer-backend-subdomain.loadbalancer.server.port=8000'
       
 
     command: >
@@ -99,16 +99,16 @@ services:
     expose:
       - "3000"
     labels:
-      - traefik.enable=true
-      - traefik.docker.network=coolify
-      - traefik.http.middlewares.gzip.compress=true
-      - traefik.http.routers.deer-frontend.entryPoints=websecure
-      - traefik.http.routers.deer-frontend.middlewares=gzip
-      - traefik.http.routers.deer-frontend.rule=Host(`deer-flow.cyberteam.click`)
-      - traefik.http.routers.deer-frontend.service=deer-frontend
-      - traefik.http.routers.deer-frontend.tls=true
-      - traefik.http.routers.deer-frontend.priority=50
-      - traefik.http.services.deer-frontend.loadbalancer.server.port=3000
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=coolify'
+      - 'traefik.http.middlewares.gzip.compress=true'
+      - 'traefik.http.routers.deer-frontend.entryPoints=websecure'
+      - 'traefik.http.routers.deer-frontend.middlewares=gzip'
+      - 'traefik.http.routers.deer-frontend.rule=Host(`deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-frontend.service=deer-frontend'
+      - 'traefik.http.routers.deer-frontend.tls=true'
+      - 'traefik.http.routers.deer-frontend.priority=50'
+      - 'traefik.http.services.deer-frontend.loadbalancer.server.port=3000'
       
     depends_on:
       backend:
