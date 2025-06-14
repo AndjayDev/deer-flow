@@ -86,6 +86,8 @@ services:
       - .env
     expose:
       - "3000"
+    ports:
+      - "3000:3000"
     labels:
       # 🚨 TRAEFIK CORE CONFIG
       - 'traefik.enable=true'
