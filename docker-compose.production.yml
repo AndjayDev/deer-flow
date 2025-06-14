@@ -11,11 +11,12 @@ services:
       - API_BASE_URL=https://api.deer-flow.cyberteam.click
       - SEARCH_API=${SEARCH_API:-tavily}
       - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
+      # OpenAI temporarily disabled - no credits
       # - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      DEFAULT_LLM_PROVIDER: '${DEFAULT_LLM_PROVIDER:-deepseek}'
-      PRIMARY_LLM_PROVIDER: '${PRIMARY_LLM_PROVIDER:-deepseek}'
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-deepseek}
+      - PRIMARY_LLM_PROVIDER=${PRIMARY_LLM_PROVIDER:-deepseek}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
       - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
@@ -28,11 +29,11 @@ services:
     expose:
       - "8000"
     labels:
-      # 🚨 TRAEFIK CORE CONFIG
+      # Core Traefik Configuration
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
       
-      # 🎯 API ROUTING (HTTPS)
+      # API HTTPS Routing
       - 'traefik.http.routers.deer-api-https.entryPoints=https'
       - 'traefik.http.routers.deer-api-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
       - 'traefik.http.routers.deer-api-https.service=deer-api-service'
@@ -41,7 +42,7 @@ services:
       - 'traefik.http.routers.deer-api-https.priority=200'
       - 'traefik.http.services.deer-api-service.loadbalancer.server.port=8000'
       
-      # 🔄 HTTP TO HTTPS REDIRECT
+      # HTTP to HTTPS Redirect
       - 'traefik.http.routers.deer-api-http.entryPoints=http'
       - 'traefik.http.routers.deer-api-http.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
       - 'traefik.http.routers.deer-api-http.middlewares=redirect-to-https'
@@ -91,11 +92,11 @@ services:
     ports:
       - "3000:3000"
     labels:
-      # 🚨 TRAEFIK CORE CONFIG
+      # Core Traefik Configuration
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
       
-      # 🎯 FRONTEND ROUTING (HTTPS)
+      # Frontend HTTPS Routing
       - 'traefik.http.routers.deer-frontend-https.entryPoints=https'
       - 'traefik.http.routers.deer-frontend-https.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-https.service=deer-frontend-service'
@@ -104,7 +105,7 @@ services:
       - 'traefik.http.routers.deer-frontend-https.priority=50'
       - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
       
-      # 🔄 HTTP TO HTTPS REDIRECT
+      # HTTP to HTTPS Redirect
       - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
       - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
