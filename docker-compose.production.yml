@@ -37,8 +37,8 @@ services:
     environment:
       # Your environment variables here
     labels:
-      - traefik.enable=true
-      - traefik.docker.network=coolify
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=coolify'
       
       # 🚨 IMMEDIATE FIX: Path-based routing (works right now)
       - 'traefik.http.routers.deer-backend-api.entryPoints=websecure'
