@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
+# Copyright (c) 2025 Bytedance Ltd. and/or its affiliates before iterations
 # SPDX-License-Identifier: MIT
 
 from pathlib import Path
