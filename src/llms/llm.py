@@ -10,6 +10,10 @@ from langchain_openai import ChatOpenAI
 from src.config import load_yaml_config
 from src.config.agents import LLMType
 
+
+# ADD: Import custom provider with explicit error handling
+from src.llms.custom_provider import create_custom_provider, CustomLLMWrapper, ProviderError
+
 # Cache for LLM instances
 _llm_cache: dict[LLMType, ChatOpenAI] = {}
 
@@ -65,7 +69,33 @@ def get_llm_by_type(
     llm = _create_llm_use_conf(llm_type, conf)
     _llm_cache[llm_type] = llm
     return llm
-
+# Enhanced health check function
+def validate_llm_config(llm_type: LLMType = "basic") -> Dict[str, Any]:
+    """
+    Validate LLM configuration and test connectivity
+    Returns status information for monitoring
+    """
+    try:
+        llm = get_llm_by_type(llm_type)
+        
+        # Test with simple message
+        test_response = llm.invoke("Hello")
+        
+        return {
+            "status": "healthy",
+            "llm_type": llm_type,
+            "provider": getattr(llm, 'provider', {}).get('provider_name', 'OpenAI') if hasattr(llm, 'provider') else 'OpenAI',
+            "test_successful": True,
+            "response_length": len(test_response)
+        }
+        
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "llm_type": llm_type,
+            "error": str(e),
+            "test_successful": False
+        }
 
 # In the future, we will use reasoning_llm and vl_llm for different purposes
 # reasoning_llm = get_llm_by_type("reasoning")
