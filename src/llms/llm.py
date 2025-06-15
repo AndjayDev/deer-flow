@@ -69,33 +69,43 @@ def get_llm_by_type(
     llm = _create_llm_use_conf(llm_type, conf)
     _llm_cache[llm_type] = llm
     return llm
-# Enhanced health check function
-def validate_llm_config(llm_type: LLMType = "basic") -> Dict[str, Any]:
-    """
-    Validate LLM configuration and test connectivity
-    Returns status information for monitoring
-    """
-    try:
-        llm = get_llm_by_type(llm_type)
-        
-        # Test with simple message
-        test_response = llm.invoke("Hello")
-        
-        return {
-            "status": "healthy",
-            "llm_type": llm_type,
-            "provider": getattr(llm, 'provider', {}).get('provider_name', 'OpenAI') if hasattr(llm, 'provider') else 'OpenAI',
-            "test_successful": True,
-            "response_length": len(test_response)
-        }
-        
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "llm_type": llm_type,
-            "error": str(e),
-            "test_successful": False
-        }
+# MINIMAL ADDITION to existing src/llms/llm.py
+# Just add this simple DeepSeek handler
+
+def _create_deepseek_client(conf: Dict[str, Any]):
+    """Simple DeepSeek client - no fancy wrapper needed"""
+    import requests
+    
+    class SimpleDeepSeek:
+        def __init__(self, config):
+            self.api_key = config["api_key"]
+            self.base_url = config["base_url"]
+            self.model = config["model"]
+            
+        def invoke(self, messages):
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            
+            # Convert message to simple format
+            if isinstance(messages, str):
+                formatted_messages = [{"role": "user", "content": messages}]
+            else:
+                formatted_messages = [{"role": "user", "content": str(messages)}]
+            
+            payload = {
+                "model": self.model.replace("deepseek/", ""),
+                "messages": formatted_messages,
+                "temperature": 0.7
+            }
+            
+            response = requests.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
+            
+            if response.status_code != 200:
+                raise Exception(f"DeepSeek API Error: {response.status_code} - {response.text}")
+            
+            return response.json()["choices"][0]["message"]["content"]
+    
+    return SimpleDeepSeek(conf)
+
 
 # In the future, we will use reasoning_llm and vl_llm for different purposes
 # reasoning_llm = get_llm_by_type("reasoning")
