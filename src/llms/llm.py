@@ -1,5 +1,6 @@
 # Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 # SPDX-License-Identifier: MIT
+# UPDATED: Now compatible with Vertex AI and your exact .env configuration
 
 from pathlib import Path
 from typing import Any, Dict, Union
@@ -10,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from src.config import load_yaml_config
 from src.config.agents import LLMType
 
-# Import custom provider system
+# Import Vertex AI compatible custom provider system
 try:
     from src.llms.custom_provider import create_custom_provider, CustomLLMWrapper, ProviderError
     CUSTOM_PROVIDERS_AVAILABLE = True
@@ -29,71 +30,108 @@ _llm_cache: dict[LLMType, Union[ChatOpenAI, CustomLLMWrapper]] = {}
 def _get_env_llm_conf(llm_type: str) -> Dict[str, Any]:
     """
     Get LLM configuration from environment variables.
-    Environment variables should follow the format: {LLM_TYPE}_MODEL__{KEY}
-    e.g., BASIC_MODEL__api_key, BASIC_MODEL__base_url
+    Updated to match your .env file structure
     """
-    prefix = f"{llm_type.upper()}_MODEL__"
     conf = {}
-    for key, value in os.environ.items():
-        if key.startswith(prefix):
-            conf_key = key[len(prefix):].lower()
-            conf[conf_key] = value
+    
+    # Map LLM types to your exact environment variable names
+    if llm_type.lower() == "basic":
+        conf.update({
+            "model": os.getenv("GEMINI_BASIC_MODEL", "gemini-2.0-flash-001"),
+            "project_id": os.getenv("GOOGLE_CLOUD_PROJECT"),
+            "location": os.getenv("VERTEX_AI_LOCATION", "us-central1"),
+            "api_key": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),  # Service account path
+            "provider_type": "vertex_ai",
+            "temperature": 0.7,
+            "max_tokens": 8192
+        })
+    elif llm_type.lower() == "reasoning":
+        conf.update({
+            "model": os.getenv("GEMINI_REASONING_MODEL", "gemini-2.5-pro-preview-06-05"),
+            "project_id": os.getenv("GOOGLE_CLOUD_PROJECT"),
+            "location": os.getenv("VERTEX_AI_LOCATION", "us-central1"),
+            "api_key": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),  # Service account path
+            "provider_type": "vertex_ai",
+            "temperature": 0.8,
+            "max_tokens": 32768
+        })
+    elif llm_type.lower() == "vision":
+        conf.update({
+            "model": os.getenv("GEMINI_VISION_MODEL", "gemini-2.5-pro-preview-06-05"),
+            "project_id": os.getenv("GOOGLE_CLOUD_PROJECT"),
+            "location": os.getenv("VERTEX_AI_LOCATION", "us-central1"),
+            "api_key": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),  # Service account path
+            "provider_type": "vertex_ai",
+            "temperature": 0.7,
+            "max_tokens": 32768,
+            "supports_vision": True
+        })
+    
+    # Add base URL for Vertex AI if not set
+    if conf.get("provider_type") == "vertex_ai" and not conf.get("base_url"):
+        project_id = conf.get("project_id")
+        location = conf.get("location")
+        if project_id and location:
+            conf["base_url"] = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models"
+    
     return conf
 
 
-def _is_custom_provider(model_name: str) -> bool:
+def _is_vertex_ai_model(model_name: str) -> bool:
     """
-    Check if model requires custom provider implementation.
-    Returns True for providers that need special API format handling.
+    Check if model requires Vertex AI provider.
+    Updated to match your configuration approach.
     """
     if not CUSTOM_PROVIDERS_AVAILABLE:
         return False
     
-    custom_providers = [
-        "gemini",      # Google Gemini (different API format)
-        "deepseek",    # DeepSeek (for consistency)
-        "claude",      # Anthropic Claude
-        "perplexity",  # Perplexity AI
-        "qwen",        # Alibaba Qwen
-        "groq",        # Groq
-        "xai",         # xAI (Grok)
+    # Check if it's a Gemini model (should use Vertex AI)
+    vertex_ai_models = [
+        "gemini-2.0-flash-001",
+        "gemini-2.5-pro-preview-06-05",
+        "gemini",  # Generic gemini models
     ]
     
     model_lower = model_name.lower()
-    is_custom = any(provider in model_lower for provider in custom_providers)
+    is_vertex = any(model in model_lower for model in vertex_ai_models)
     
-    if is_custom:
-        logger.info(f"Detected custom provider needed for model: {model_name}")
+    if is_vertex:
+        logger.info(f"Detected Vertex AI model: {model_name}")
     
-    return is_custom
+    return is_vertex
 
 
-def _create_custom_llm(llm_conf: Dict[str, Any]) -> CustomLLMWrapper:
-    """Create custom provider LLM instance with validation."""
+def _create_vertex_ai_llm(llm_conf: Dict[str, Any]) -> CustomLLMWrapper:
+    """Create Vertex AI LLM instance with validation."""
     try:
-        # Validate required configuration
-        required_fields = ["model", "api_key", "base_url"]
+        # Validate required configuration for Vertex AI
+        required_fields = ["model", "project_id", "location", "api_key"]
         missing_fields = [field for field in required_fields if not llm_conf.get(field)]
         
         if missing_fields:
-            raise ValueError(f"Missing required configuration fields: {missing_fields}")
+            raise ValueError(f"Missing required Vertex AI configuration fields: {missing_fields}")
+        
+        # Verify credentials file exists
+        credentials_path = llm_conf.get("api_key")
+        if credentials_path and not os.path.exists(credentials_path):
+            raise ValueError(f"Vertex AI credentials file not found: {credentials_path}")
         
         # Create provider
         provider = create_custom_provider(llm_conf)
         wrapper = CustomLLMWrapper(provider)
         
-        logger.info(f"Successfully created custom provider: {provider.provider_name}")
+        logger.info(f"Successfully created Vertex AI provider: {llm_conf.get('model')}")
         return wrapper
         
     except Exception as e:
-        logger.error(f"Failed to create custom provider: {e}")
-        raise ValueError(f"Custom provider creation failed: {e}")
+        logger.error(f"Failed to create Vertex AI provider: {e}")
+        raise ValueError(f"Vertex AI provider creation failed: {e}")
 
 
 def _create_standard_llm(llm_conf: Dict[str, Any]) -> ChatOpenAI:
-    """Create standard ChatOpenAI instance for OpenAI-compatible APIs."""
+    """Create standard ChatOpenAI instance for non-Vertex AI models."""
     try:
-        # Remove custom provider specific configurations that ChatOpenAI doesn't understand
+        # Remove Vertex AI specific configurations that ChatOpenAI doesn't understand
         openai_conf = {k: v for k, v in llm_conf.items() 
                       if k in ["model", "api_key", "base_url", "temperature", "max_tokens"]}
         
@@ -111,9 +149,10 @@ def _create_standard_llm(llm_conf: Dict[str, Any]) -> ChatOpenAI:
 
 def _create_llm_use_conf(llm_type: LLMType, conf: Dict[str, Any]) -> Union[ChatOpenAI, CustomLLMWrapper]:
     """
-    Create LLM instance based on configuration with intelligent provider routing.
+    Create LLM instance based on configuration with Vertex AI routing.
+    Updated to match your conf.yaml structure.
     """
-    # Get type-specific configuration
+    # Get type-specific configuration from conf.yaml
     llm_type_map = {
         "reasoning": conf.get("REASONING_MODEL", {}),
         "basic": conf.get("BASIC_MODEL", {}),
@@ -122,7 +161,8 @@ def _create_llm_use_conf(llm_type: LLMType, conf: Dict[str, Any]) -> Union[ChatO
     
     llm_conf = llm_type_map.get(llm_type)
     if not isinstance(llm_conf, dict):
-        raise ValueError(f"Invalid LLM configuration for type '{llm_type}': {llm_conf}")
+        logger.warning(f"No conf.yaml configuration for '{llm_type}', falling back to environment variables")
+        llm_conf = {}
     
     # Get configuration from environment variables (higher priority)
     env_conf = _get_env_llm_conf(llm_type)
@@ -139,9 +179,9 @@ def _create_llm_use_conf(llm_type: LLMType, conf: Dict[str, Any]) -> Union[ChatO
         raise ValueError(f"Model name is required for LLM type: {llm_type}")
     
     # Route to appropriate provider
-    if _is_custom_provider(model_name):
-        logger.info(f"Using custom provider for {llm_type}: {model_name}")
-        return _create_custom_llm(merged_conf)
+    if _is_vertex_ai_model(model_name) or merged_conf.get("provider_type") == "vertex_ai":
+        logger.info(f"Using Vertex AI for {llm_type}: {model_name}")
+        return _create_vertex_ai_llm(merged_conf)
     else:
         logger.info(f"Using standard ChatOpenAI for {llm_type}: {model_name}")
         return _create_standard_llm(merged_conf)
@@ -150,7 +190,7 @@ def _create_llm_use_conf(llm_type: LLMType, conf: Dict[str, Any]) -> Union[ChatO
 def get_llm_by_type(llm_type: LLMType) -> Union[ChatOpenAI, CustomLLMWrapper]:
     """
     Get LLM instance by type with caching.
-    Returns either ChatOpenAI or CustomLLMWrapper depending on the provider.
+    Updated for your Vertex AI configuration.
     """
     # Return cached instance if available
     if llm_type in _llm_cache:
@@ -158,9 +198,15 @@ def get_llm_by_type(llm_type: LLMType) -> Union[ChatOpenAI, CustomLLMWrapper]:
         return _llm_cache[llm_type]
     
     try:
-        # Load configuration
+        # Load configuration from conf.yaml
         conf_path = Path(__file__).parent.parent.parent / "conf.yaml"
-        conf = load_yaml_config(str(conf_path.resolve()))
+        
+        if conf_path.exists():
+            conf = load_yaml_config(str(conf_path.resolve()))
+            logger.info(f"Loaded configuration from conf.yaml")
+        else:
+            logger.warning(f"conf.yaml not found at {conf_path}, using environment variables only")
+            conf = {}
         
         # Create LLM instance
         llm = _create_llm_use_conf(llm_type, conf)
@@ -189,9 +235,11 @@ def get_cached_llm_info() -> Dict[str, Any]:
     for llm_type, llm_instance in _llm_cache.items():
         if isinstance(llm_instance, CustomLLMWrapper):
             info[llm_type] = {
-                "type": "CustomLLMWrapper",
+                "type": "CustomLLMWrapper (Vertex AI)",
                 "provider": llm_instance.provider.provider_name,
-                "model": llm_instance.provider.model
+                "model": llm_instance.provider.model,
+                "project_id": getattr(llm_instance.provider, 'project_id', 'unknown'),
+                "location": getattr(llm_instance.provider, 'location', 'unknown')
             }
         elif isinstance(llm_instance, ChatOpenAI):
             info[llm_type] = {
@@ -206,24 +254,29 @@ def get_cached_llm_info() -> Dict[str, Any]:
     return info
 
 
-def test_llm_configuration() -> Dict[str, Any]:
+def test_vertex_ai_configuration() -> Dict[str, Any]:
     """
-    Test all configured LLM types to ensure they're working properly.
-    Returns status information for each type.
+    Test Vertex AI configuration using your exact setup.
     """
     results = {}
     
+    # Test each LLM type with your configuration
     for llm_type in ["basic", "reasoning", "vision"]:
         try:
+            logger.info(f"Testing {llm_type} LLM configuration...")
+            
             llm = get_llm_by_type(llm_type)
             
             # Test with a simple prompt
-            test_response = llm.invoke("Hello! Please respond with 'OK' if you're working.")
+            test_message = f"Hello! Please respond with 'OK - {llm_type} model working correctly.'"
+            test_response = llm.invoke(test_message)
             
             results[llm_type] = {
                 "status": "success",
-                "response_length": len(test_response),
-                "llm_type": type(llm).__name__
+                "response_length": len(test_response.content if hasattr(test_response, 'content') else str(test_response)),
+                "llm_type": type(llm).__name__,
+                "model": getattr(llm.provider, 'model', 'unknown') if hasattr(llm, 'provider') else 'unknown',
+                "response_preview": str(test_response)[:100] + "..." if len(str(test_response)) > 100 else str(test_response)
             }
             
         except Exception as e:
@@ -235,92 +288,96 @@ def test_llm_configuration() -> Dict[str, Any]:
     return results
 
 
-# Convenience functions for specific research tasks
+def verify_environment_variables() -> Dict[str, Any]:
+    """Verify that all required environment variables are set correctly."""
+    required_vars = {
+        "GOOGLE_CLOUD_PROJECT": os.getenv("GOOGLE_CLOUD_PROJECT"),
+        "VERTEX_AI_LOCATION": os.getenv("VERTEX_AI_LOCATION"),
+        "GOOGLE_APPLICATION_CREDENTIALS": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
+        "GEMINI_BASIC_MODEL": os.getenv("GEMINI_BASIC_MODEL"),
+        "GEMINI_REASONING_MODEL": os.getenv("GEMINI_REASONING_MODEL"),
+        "GEMINI_VISION_MODEL": os.getenv("GEMINI_VISION_MODEL"),
+    }
+    
+    verification = {}
+    for var_name, var_value in required_vars.items():
+        if var_value:
+            if var_name == "GOOGLE_APPLICATION_CREDENTIALS":
+                # Check if file exists
+                file_exists = os.path.exists(var_value) if var_value else False
+                verification[var_name] = {
+                    "status": "✅ SET" if file_exists else "❌ FILE NOT FOUND",
+                    "value": var_value,
+                    "file_exists": file_exists
+                }
+            else:
+                verification[var_name] = {
+                    "status": "✅ SET",
+                    "value": var_value
+                }
+        else:
+            verification[var_name] = {
+                "status": "❌ NOT SET",
+                "value": None
+            }
+    
+    return verification
+
+
+# Convenience functions for specific research tasks (updated for Vertex AI)
 def get_research_llm(context_size: str = "large") -> Union[ChatOpenAI, CustomLLMWrapper]:
     """
     Get LLM optimized for research tasks based on required context size.
-    
-    Args:
-        context_size: "small" (8K), "large" (32K+), or "huge" (1M+)
+    Updated to use your Vertex AI models.
     """
     if context_size == "small":
-        return get_llm_by_type("basic")      # Fast, cost-effective
+        return get_llm_by_type("basic")      # gemini-2.0-flash-001 - fast, cost-effective
     elif context_size == "large":
-        return get_llm_by_type("reasoning")  # Balanced performance
+        return get_llm_by_type("reasoning")  # gemini-2.5-pro-preview-06-05 - 1M context
     else:  # huge
-        return get_llm_by_type("reasoning")  # Maximum context
+        return get_llm_by_type("reasoning")  # Maximum context capability
 
 
 def get_vision_llm() -> Union[ChatOpenAI, CustomLLMWrapper]:
     """Get LLM capable of processing images and vision tasks."""
-    return get_llm_by_type("vision")
-
-
-# Legacy compatibility
-def _create_deepseek_client(conf: Dict[str, Any]):
-    """
-    Legacy DeepSeek client - kept for backward compatibility.
-    New implementations should use the custom provider system.
-    """
-    logger.warning("Using legacy DeepSeek client - consider upgrading to custom provider")
-    
-    import requests
-    
-    class SimpleDeepSeek:
-        def __init__(self, config):
-            self.api_key = config["api_key"]
-            self.base_url = config["base_url"]
-            self.model = config["model"]
-            
-        def invoke(self, messages):
-            headers = {
-                "Authorization": f"Bearer {self.api_key}", 
-                "Content-Type": "application/json"
-            }
-            
-            # Convert message to simple format
-            if isinstance(messages, str):
-                formatted_messages = [{"role": "user", "content": messages}]
-            else:
-                formatted_messages = [{"role": "user", "content": str(messages)}]
-            
-            payload = {
-                "model": self.model.replace("deepseek/", ""),
-                "messages": formatted_messages,
-                "temperature": 0.7
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/chat/completions", 
-                headers=headers, 
-                json=payload
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"DeepSeek API Error: {response.status_code} - {response.text}")
-            
-            return response.json()["choices"][0]["message"]["content"]
-    
-    return SimpleDeepSeek(conf)
+    return get_llm_by_type("vision")  # gemini-2.5-pro-preview-06-05 with vision
 
 
 if __name__ == "__main__":
-    # Test the LLM system
+    # Test the Vertex AI system with your configuration
     try:
-        logger.info("Testing DeerFlow LLM system...")
+        logger.info("Testing DeerFlow Vertex AI system...")
         
-        # Test basic functionality
-        basic_llm = get_llm_by_type("basic")
-        print(f"✅ Basic LLM initialized: {type(basic_llm).__name__}")
+        # Verify environment variables
+        env_verification = verify_environment_variables()
+        print("🔍 Environment Variable Verification:")
+        for var_name, var_info in env_verification.items():
+            print(f"  {var_name}: {var_info['status']}")
+            if var_info.get('value'):
+                print(f"    Value: {var_info['value']}")
         
-        # Test configuration
-        test_results = test_llm_configuration()
-        print(f"✅ Configuration test completed: {len(test_results)} types tested")
+        print("\n" + "="*50)
+        
+        # Test LLM configuration
+        test_results = test_vertex_ai_configuration()
+        print("🧠 LLM Configuration Test Results:")
+        for llm_type, result in test_results.items():
+            status = result.get('status', 'unknown')
+            print(f"  {llm_type.upper()}: {status.upper()}")
+            if status == "success":
+                print(f"    Model: {result.get('model', 'unknown')}")
+                print(f"    Response: {result.get('response_preview', 'No preview')}")
+            else:
+                print(f"    Error: {result.get('error', 'Unknown error')}")
+        
+        print("\n" + "="*50)
         
         # Show cache info
         cache_info = get_cached_llm_info()
-        print(f"✅ Cache info: {cache_info}")
+        print("📦 Cache Information:")
+        for llm_type, info in cache_info.items():
+            print(f"  {llm_type}: {info}")
         
     except Exception as e:
-        print(f"❌ LLM system test failed: {e}")
-        logger.error(f"LLM system test failed: {e}")
+        print(f"❌ Vertex AI system test failed: {e}")
+        logger.error(f"Vertex AI system test failed: {e}")
