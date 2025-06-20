@@ -5,36 +5,80 @@ services:
       dockerfile: Dockerfile
     container_name: deer-flow-backend
     environment:
+      # === CORE SYSTEM CONFIGURATION ===
       - NODE_ENV=production
       - PORT=8000
       - BACKEND_URL=https://api.deer-flow.cyberteam.click
       - API_BASE_URL=https://api.deer-flow.cyberteam.click
-      - SEARCH_API=${SEARCH_API:-tavily}
-      - RAG_PROVIDER=${RAG_PROVIDER:-ragflow}
 
-      # Existing variables...
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      # === VERTEX AI AUTHENTICATION (EXACT VALUES FROM .ENV) ===
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/google-vertex-ai-key.json
+      - VERTEX_AI_LOCATION=${VERTEX_AI_LOCATION}
+      
+      # === GEMINI MODEL SELECTIONS (CORRECTED FROM RESEARCH) ===
+      - GEMINI_BASIC_MODEL=${GEMINI_BASIC_MODEL}
+      - GEMINI_REASONING_MODEL=${GEMINI_REASONING_MODEL}
+      - GEMINI_VISION_MODEL=${GEMINI_VISION_MODEL}
+      
+      # === PROVIDER ROUTING (FROM .ENV) ===
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER}
+      - PRIMARY_LLM_PROVIDER=${PRIMARY_LLM_PROVIDER}
+      - REASONING_LLM_PROVIDER=${REASONING_LLM_PROVIDER}
+      - VISION_LLM_PROVIDER=${VISION_LLM_PROVIDER}
+      
+      # === ADVANCED MODALITIES (FROM .ENV) ===
+      - TTS_PROVIDER=${TTS_PROVIDER}
+      - GEMINI_TTS_MODEL=${GEMINI_TTS_MODEL}
+      - TTS_VOICE_TYPE=${TTS_VOICE_TYPE}
+      - TTS_LANGUAGE=${TTS_LANGUAGE}
+      - IMAGE_GENERATION_PROVIDER=${IMAGE_GENERATION_PROVIDER}
+      - VERTEX_IMAGE_MODEL=${VERTEX_IMAGE_MODEL}
+      - IMAGE_RESOLUTION=${IMAGE_RESOLUTION}
+      - IMAGE_STYLE=${IMAGE_STYLE}
+      - VIDEO_GENERATION_PROVIDER=${VIDEO_GENERATION_PROVIDER}
+      - VIDEO_GENERATION_MODEL=${VIDEO_GENERATION_MODEL}
+      - AUDIO_ANALYSIS_PROVIDER=${AUDIO_ANALYSIS_PROVIDER}
+      - AUDIO_ANALYSIS_MODEL=${AUDIO_ANALYSIS_MODEL}
+
+      # === SEARCH & RESEARCH APIS (FROM .ENV) ===
+      - SEARCH_API=${SEARCH_API}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
+      
+      # === RAG & KNOWLEDGE BASE (FROM .ENV) ===
+      - RAG_PROVIDER=${RAG_PROVIDER}
+      - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
+      - RAGFLOW_API_URL=${RAGFLOW_API_URL}
+      - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
+      
+      # === LANGFUSE OBSERVABILITY (SELF-HOSTED) ===
+      - LANGFUSE_TRACING=${LANGFUSE_TRACING}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - LANGFUSE_HOST=${LANGFUSE_HOST}
+      
+      # === USER AUTHENTICATION (OAUTH) ===
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - GOOGLE_OAUTH_REDIRECT_URI=${GOOGLE_OAUTH_REDIRECT_URI}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      
+      # === FALLBACK LLM PROVIDERS (FROM .ENV) ===
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - XAI_API_KEY=${XAI_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       
-      # Provider selection
-      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-gemini}
-      - PRIMARY_LLM_PROVIDER=${PRIMARY_LLM_PROVIDER:-gemini}
-      - REASONING_LLM_PROVIDER=${REASONING_LLM_PROVIDER:-gemini}
-      - VISION_LLM_PROVIDER=${VISION_LLM_PROVIDER:-gemini}
-      
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
-      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
-      - RAGFLOW_API_KEY=${RAGFLOW_API_KEY}
-      - RAGFLOW_BASE_URL=${RAGFLOW_BASE_URL}
-      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
-      - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
-      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT}
+      # === PERFORMANCE TUNING (FROM .ENV) ===
+      - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
+      - RETRY_ATTEMPTS=${RETRY_ATTEMPTS}
+
     env_file:
       - .env
     expose:
@@ -61,12 +105,27 @@ services:
       
     command: >
       sh -c "
+        echo '🦌 DeerFlow Backend Starting - Production Mode' &&
+        echo '🔑 Vertex AI Project: ${GOOGLE_CLOUD_PROJECT}' &&
+        echo '📍 Vertex AI Location: ${VERTEX_AI_LOCATION}' &&
+        echo '🧠 Basic Model: ${GEMINI_BASIC_MODEL}' &&
+        echo '🧠 Reasoning Model: ${GEMINI_REASONING_MODEL}' &&
+        echo '👁️ Vision Model: ${GEMINI_VISION_MODEL}' &&
         echo '🦌 Installing UV package manager...' &&
         pip install --no-cache-dir uv &&
         echo '🦌 Installing core dependencies from pyproject.toml...' &&
         uv sync &&
-        echo '🦌 Installing additional research dependencies...' &&
+        echo '🦌 Installing research dependencies...' &&
         uv add matplotlib seaborn plotly pillow beautifulsoup4 selenium webdriver-manager mermaid-py diagrams graphviz python-pptx openpyxl xlsxwriter &&
+        echo '🦌 Installing Google Cloud dependencies for Vertex AI...' &&
+        uv add google-cloud-aiplatform google-auth google-auth-oauthlib google-auth-httplib2 google-cloud-texttospeech google-cloud-speech &&
+        echo '🦌 Installing Langfuse observability...' &&
+        uv add langfuse &&
+        echo '🦌 Verifying Vertex AI credentials...' &&
+        python -c 'import os; print(f\"GOOGLE_APPLICATION_CREDENTIALS: {os.environ.get(\"GOOGLE_APPLICATION_CREDENTIALS\", \"NOT SET\")}\")'  &&
+        python -c 'import os; print(f\"GOOGLE_CLOUD_PROJECT: {os.environ.get(\"GOOGLE_CLOUD_PROJECT\", \"NOT SET\")}\")'  &&
+        echo '🦌 Testing credential file access...' &&
+        python -c 'import os; print(f\"Credential file exists: {os.path.exists(\"/app/google-vertex-ai-key.json\")}\")'  &&
         echo '🦌 Starting DeerFlow Backend Server on port 8000...' &&
         uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000 --log-level info
       "
@@ -78,6 +137,7 @@ services:
       start_period: 90s
     volumes:
       - ./conf.yaml:/app/conf.yaml:ro
+      - ./google-vertex-ai-key.json:/app/google-vertex-ai-key.json:ro
       - deer_flow_data:/app/data
     restart: unless-stopped
     networks:
@@ -96,6 +156,10 @@ services:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
       - API_URL=https://deer-flow.cyberteam.click/api
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
     env_file:
       - .env
     expose:
