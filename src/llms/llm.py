@@ -119,7 +119,7 @@ def _create_vertex_ai_llm(llm_conf: Dict[str, Any]) -> CustomLLMWrapper:
         
         # Create provider
         provider = create_custom_provider(llm_conf)
-        wrapper = CustomLLMWrapper(provider)
+        wrapper = CustomLLMWrapper(provider=provider)
         
         logger.info(f"Successfully created Vertex AI provider: {llm_conf.get('model')}")
         return wrapper
