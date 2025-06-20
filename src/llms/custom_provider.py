@@ -1,9 +1,9 @@
 # src/llms/custom_provider.py
-# Copyright (c) 2025 - Complete LangChain-Compatible Provider Implementation for DeerFlow
+# Copyright (c) 2025 - Vertex AI Compatible Provider Implementation for DeerFlow
+# CORRECTED: Now uses Vertex AI API instead of Google AI Studio API
 
-import requests
-import json
 import os
+import json
 import logging
 from typing import Dict, Any, List, Iterator, Union, Optional, Callable
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -12,6 +12,17 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.callbacks import CallbackManagerForLLMRun
+
+# Google Cloud AI Platform imports for Vertex AI
+try:
+    import vertexai
+    from vertexai.generative_models import GenerativeModel, Part
+    from google.auth import default
+    from google.auth.exceptions import DefaultCredentialsError
+    VERTEX_AI_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Vertex AI dependencies not available: {e}")
+    VERTEX_AI_AVAILABLE = False
 
 # Configure logging for provider debugging
 logging.basicConfig(level=logging.INFO)
@@ -37,20 +48,21 @@ class BaseLLMProvider:
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.api_key = config.get("api_key")
-        self.base_url = config.get("base_url")
+        self.project_id = config.get("project_id") or os.getenv("GOOGLE_CLOUD_PROJECT")
+        self.location = config.get("location") or os.getenv("VERTEX_AI_LOCATION", "us-central1")
+        self.credentials_path = config.get("api_key") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         self.model = config.get("model", "").replace(self._get_provider_prefix(), "")
         self.provider_name = self.__class__.__name__.replace("Provider", "")
         
         # Enhanced configuration validation
-        if not self.api_key:
-            raise ProviderError(self.provider_name, "API key is required - check your .env file")
-        if not self.base_url:
-            raise ProviderError(self.provider_name, "Base URL is required - check your conf.yaml")
+        if not self.project_id:
+            raise ProviderError(self.provider_name, "Google Cloud Project ID is required - check GOOGLE_CLOUD_PROJECT env var")
+        if not self.credentials_path:
+            raise ProviderError(self.provider_name, "Service account credentials required - check GOOGLE_APPLICATION_CREDENTIALS env var")
         if not self.model:
             raise ProviderError(self.provider_name, "Model name is required")
             
-        logger.info(f"Initialized {self.provider_name} provider - Model: {self.model}")
+        logger.info(f"Initialized {self.provider_name} provider - Project: {self.project_id}, Model: {self.model}, Location: {self.location}")
     
     def _get_provider_prefix(self) -> str:
         """Override in subclasses to define model prefix (e.g., 'gemini/', 'deepseek/')"""
@@ -82,30 +94,6 @@ class BaseLLMProvider:
         
         return [{"role": "user", "content": str(messages)}]
     
-    def _handle_api_error(self, response, operation: str = "API call"):
-        """Enhanced error handling with response debugging"""
-        try:
-            error_detail = response.json()
-            error_msg = f"{operation} failed"
-            
-            # Extract specific error information
-            if "error" in error_detail:
-                error_info = error_detail["error"]
-                if isinstance(error_info, dict):
-                    error_msg += f" - {error_info.get('message', 'Unknown error')}"
-                    if "code" in error_info:
-                        error_msg += f" (Code: {error_info['code']})"
-                else:
-                    error_msg += f" - {error_info}"
-            else:
-                error_msg += f" - {response.text[:200]}"
-                
-        except json.JSONDecodeError:
-            error_msg = f"{operation} failed - Invalid JSON response: {response.text[:200]}"
-        
-        logger.error(f"[{self.provider_name}] {error_msg}")
-        raise ProviderError(self.provider_name, error_msg, response.status_code, response.text)
-    
     def invoke(self, messages) -> str:
         """Synchronous message completion - override in subclasses"""
         raise NotImplementedError(f"{self.provider_name} must implement invoke method")
@@ -116,112 +104,122 @@ class BaseLLMProvider:
         yield response
 
 
-class GeminiProvider(BaseLLMProvider):
-    """Google Gemini Provider - Google AI Studio API (generativelanguage.googleapis.com)"""
+class VertexAIGeminiProvider(BaseLLMProvider):
+    """Google Vertex AI Gemini Provider - Uses Vertex AI API (aiplatform.googleapis.com)"""
+    
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        
+        if not VERTEX_AI_AVAILABLE:
+            raise ProviderError("VertexAI", "Vertex AI dependencies not installed. Run: pip install google-cloud-aiplatform")
+        
+        # Initialize Vertex AI with project and location
+        try:
+            # Set credentials if path is provided
+            if self.credentials_path and os.path.exists(self.credentials_path):
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
+            
+            # Initialize Vertex AI
+            vertexai.init(project=self.project_id, location=self.location)
+            logger.info(f"[VertexAI] Initialized successfully - Project: {self.project_id}, Location: {self.location}")
+            
+            # Test credentials
+            try:
+                credentials, project = default()
+                logger.info(f"[VertexAI] Credentials verified for project: {project}")
+            except DefaultCredentialsError as e:
+                raise ProviderError("VertexAI", f"Credential error: {e}")
+                
+        except Exception as e:
+            raise ProviderError("VertexAI", f"Initialization failed: {e}")
     
     def _get_provider_prefix(self) -> str:
         return "gemini/"
     
-    def _convert_to_gemini_format(self, messages: List[Dict]) -> List[Dict]:
-        """Convert standard messages to Gemini's specific format"""
-        gemini_contents = []
+    def _convert_messages_to_vertex_format(self, messages: List[Dict]) -> str:
+        """Convert messages to simple text prompt for Vertex AI"""
+        # For now, we'll combine all messages into a single prompt
+        # Vertex AI Gemini models can handle complex conversations but this is simpler for initial implementation
+        combined_prompt = ""
         
         for msg in messages:
-            if msg["role"] in ["user", "system"]:
-                # Gemini treats system messages as user messages
-                gemini_contents.append({
-                    "parts": [{"text": msg["content"]}]
-                })
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            
+            if role == "system":
+                combined_prompt += f"System: {content}\n\n"
+            elif role == "user":
+                combined_prompt += f"User: {content}\n\n"
+            elif role == "assistant":
+                combined_prompt += f"Assistant: {content}\n\n"
         
-        return gemini_contents
+        # Remove trailing newlines
+        return combined_prompt.strip()
     
     def invoke(self, messages) -> str:
-        """Gemini-specific API call using Google AI Studio format"""
-        headers = {
-            "Content-Type": "application/json"
-        }
-        
-        # Convert messages to Gemini format
-        standard_messages = self._format_messages(messages)
-        gemini_contents = self._convert_to_gemini_format(standard_messages)
-        
-        # Gemini-specific payload structure for AI Studio API
-        payload = {
-            "contents": gemini_contents,
-            "generationConfig": {
-                "temperature": self.config.get("temperature", 0.7),
-                "maxOutputTokens": self.config.get("max_tokens", 32768),
-                "candidateCount": 1,
-                "stopSequences": []
-            }
-        }
-        
-        # Google AI Studio URL format: /v1beta/models/{model}:generateContent?key={api_key}
-        url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
-        
-        logger.info(f"[Gemini] Making request to: {url}")
-        logger.debug(f"[Gemini] Payload: {json.dumps(payload, indent=2)}")
-        
+        """Vertex AI Gemini-specific API call"""
         try:
-            response = requests.post(
-                url, 
-                headers=headers, 
-                json=payload, 
-                timeout=60  # Longer timeout for large context
+            # Convert messages to format
+            standard_messages = self._format_messages(messages)
+            prompt = self._convert_messages_to_vertex_format(standard_messages)
+            
+            logger.info(f"[VertexAI] Making request with model: {self.model}")
+            logger.debug(f"[VertexAI] Prompt: {prompt[:500]}...")
+            
+            # Initialize the model
+            model = GenerativeModel(self.model)
+            
+            # Generate content
+            response = model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": self.config.get("temperature", 0.7),
+                    "max_output_tokens": self.config.get("max_tokens", 32768),
+                    "top_p": self.config.get("top_p", 0.95),
+                    "top_k": self.config.get("top_k", 40),
+                }
             )
             
-            logger.info(f"[Gemini] Response status: {response.status_code}")
-            
-            if response.status_code != 200:
-                self._handle_api_error(response, "Gemini content generation")
-            
-            # Parse Gemini response format
-            result = response.json()
-            logger.debug(f"[Gemini] Response: {json.dumps(result, indent=2)}")
-            
-            # Validate response structure
-            if "candidates" not in result:
-                raise ProviderError("Gemini", f"Invalid response format - missing 'candidates': {result}")
-            
-            if not result["candidates"]:
-                raise ProviderError("Gemini", f"No candidates in response: {result}")
-            
-            candidate = result["candidates"][0]
-            
-            if "content" not in candidate:
-                raise ProviderError("Gemini", f"No content in candidate: {candidate}")
-            
-            if "parts" not in candidate["content"]:
-                raise ProviderError("Gemini", f"No parts in content: {candidate['content']}")
-            
-            if not candidate["content"]["parts"]:
-                raise ProviderError("Gemini", f"Empty parts array: {candidate['content']}")
-            
-            response_text = candidate["content"]["parts"][0]["text"]
-            logger.info(f"[Gemini] Successfully generated {len(response_text)} characters")
-            
-            return response_text
-            
-        except requests.exceptions.Timeout:
-            error_msg = "Request timeout - try reducing input size or increasing timeout"
-            logger.error(f"[Gemini] {error_msg}")
-            raise ProviderError("Gemini", error_msg)
-            
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Network error: {str(e)}"
-            logger.error(f"[Gemini] {error_msg}")
-            raise ProviderError("Gemini", error_msg)
+            # Extract response text
+            if response.text:
+                logger.info(f"[VertexAI] Successfully generated {len(response.text)} characters")
+                return response.text
+            else:
+                # Check if there were any safety issues or other problems
+                if response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'finish_reason'):
+                        raise ProviderError("VertexAI", f"Generation stopped: {candidate.finish_reason}")
+                
+                raise ProviderError("VertexAI", "Empty response received")
+                
+        except Exception as e:
+            if isinstance(e, ProviderError):
+                raise
+            else:
+                error_msg = f"Vertex AI API error: {str(e)}"
+                logger.error(f"[VertexAI] {error_msg}")
+                raise ProviderError("VertexAI", error_msg)
 
 
-class DeepSeekProvider(BaseLLMProvider):
-    """DeepSeek Provider - Cost-effective fallback"""
+# Legacy provider for non-Vertex AI models (DeepSeek, etc.)
+class StandardAPIProvider(BaseLLMProvider):
+    """Standard API Provider for OpenAI-compatible APIs (DeepSeek, Perplexity, etc.)"""
     
     def _get_provider_prefix(self) -> str:
-        return "deepseek/"
+        return ""
     
     def invoke(self, messages) -> str:
+        """Standard OpenAI-compatible API call"""
+        import requests
+        
+        # Use api_key for standard APIs (not service account path)
+        api_key = self.config.get("api_key")
+        if not api_key:
+            raise ProviderError(self.provider_name, "API key is required for standard providers")
+        
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         
@@ -232,46 +230,44 @@ class DeepSeekProvider(BaseLLMProvider):
             "max_tokens": self.config.get("max_tokens", 8192)
         }
         
+        base_url = self.config.get("base_url", "https://api.openai.com/v1")
+        
         try:
             response = requests.post(
-                f"{self.base_url}/chat/completions",
+                f"{base_url}/chat/completions",
                 headers=headers,
                 json=payload,
-                timeout=30
+                timeout=60
             )
             
             if response.status_code != 200:
-                self._handle_api_error(response, "DeepSeek completion")
+                raise ProviderError(self.provider_name, f"API error: {response.status_code} - {response.text}")
             
             result = response.json()
             return result["choices"][0]["message"]["content"]
             
         except requests.exceptions.RequestException as e:
-            logger.error(f"[DeepSeek] Network error: {e}")
-            raise ProviderError("DeepSeek", f"Network error: {e}")
+            raise ProviderError(self.provider_name, f"Network error: {e}")
 
 
 def create_custom_provider(config: Dict[str, Any]) -> BaseLLMProvider:
     """Factory function to create appropriate provider with enhanced detection"""
     model = config.get("model", "").lower()
+    provider_type = config.get("provider_type", "").lower()
     
     # Provider detection logic
-    if "gemini" in model:
-        logger.info(f"Detected Gemini provider for model: {model}")
-        return GeminiProvider(config)
-    elif "deepseek" in model:
-        logger.info(f"Detected DeepSeek provider for model: {model}")
-        return DeepSeekProvider(config)
+    if "gemini" in model or provider_type == "vertex_ai":
+        logger.info(f"Creating Vertex AI provider for model: {model}")
+        return VertexAIGeminiProvider(config)
     else:
-        # Default to Gemini if model name is unclear
-        logger.warning(f"Unknown model '{model}', defaulting to Gemini provider")
-        return GeminiProvider(config)
+        logger.info(f"Creating standard API provider for model: {model}")
+        return StandardAPIProvider(config)
 
 
 class CustomLLMWrapper(BaseChatModel):
     """
     Full LangChain-compatible wrapper that supports all ChatModel methods
-    This fixes the 'bind_tools' AttributeError and other compatibility issues
+    Updated for Vertex AI compatibility
     """
     
     def __init__(self, provider: BaseLLMProvider, **kwargs):
@@ -337,10 +333,7 @@ class CustomLLMWrapper(BaseChatModel):
         return result.generations[0].message
     
     def bind_tools(self, tools: List[Union[Dict[str, Any], BaseTool, Callable]], **kwargs) -> "CustomLLMWrapper":
-        """
-        Bind tools to the model - CRITICAL method that was missing
-        This fixes the 'bind_tools' AttributeError
-        """
+        """Bind tools to the model"""
         logger.info(f"[{self.provider.provider_name}] Binding {len(tools)} tools")
         
         # Create a new instance with bound tools
@@ -355,17 +348,6 @@ class CustomLLMWrapper(BaseChatModel):
         new_wrapper = CustomLLMWrapper(self.provider)
         new_wrapper._bound_tools = self._bound_tools
         new_wrapper._bound_config = {**self._bound_config, **config}
-        return new_wrapper
-    
-    def with_retry(self, **kwargs) -> "CustomLLMWrapper":
-        """Create a new instance with retry configuration"""
-        return self.with_config({"retry": kwargs})
-    
-    def with_fallbacks(self, fallbacks: List["CustomLLMWrapper"]) -> "CustomLLMWrapper":
-        """Create a new instance with fallback models"""
-        new_wrapper = CustomLLMWrapper(self.provider)
-        new_wrapper._bound_tools = self._bound_tools
-        new_wrapper._bound_config = {**self._bound_config, "fallbacks": fallbacks}
         return new_wrapper
     
     def stream(self, input, config: Optional[RunnableConfig] = None, **kwargs) -> Iterator[AIMessage]:
@@ -385,44 +367,31 @@ class CustomLLMWrapper(BaseChatModel):
         except Exception as e:
             logger.error(f"[{self.provider.provider_name}] Streaming error: {e}")
             raise Exception(f"LLM Provider Streaming Error: {str(e)}")
-    
-    def get_num_tokens(self, text: str) -> int:
-        """Estimate token count - basic implementation"""
-        # Rough estimation: 1 token ≈ 4 characters for most models
-        return len(text) // 4
-    
-    def get_num_tokens_from_messages(self, messages: List[BaseMessage]) -> int:
-        """Estimate token count from messages"""
-        total = 0
-        for message in messages:
-            total += self.get_num_tokens(message.content)
-        return total
-    
-    # Add any other methods that DeerFlow might expect
-    def __call__(self, *args, **kwargs):
-        """Allow the wrapper to be called directly"""
-        return self.invoke(*args, **kwargs)
 
 
-def test_gemini_provider(api_key: str) -> Dict[str, Any]:
-    """Test function to validate Gemini setup with Google AI Studio API"""
-    config = {
-        "model": "gemini-2.0-flash-lite-001",
-        "api_key": api_key,
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/models",
-        "temperature": 0.7,
-        "max_tokens": 1024
-    }
-    
+def test_vertex_ai_setup(project_id: str, location: str = "us-central1") -> Dict[str, Any]:
+    """Test function to validate Vertex AI setup"""
     try:
-        provider = GeminiProvider(config)
+        # Test configuration
+        config = {
+            "model": "gemini-2.0-flash-001",
+            "project_id": project_id,
+            "location": location,
+            "provider_type": "vertex_ai",
+            "temperature": 0.7,
+            "max_tokens": 1024
+        }
+        
+        provider = VertexAIGeminiProvider(config)
         wrapper = CustomLLMWrapper(provider)
         
-        test_response = wrapper.invoke("Hello! Please respond with 'Gemini is working correctly.'")
+        test_response = wrapper.invoke("Hello! Please respond with 'Vertex AI is working correctly.'")
         
         return {
             "status": "success",
-            "provider": "Gemini",
+            "provider": "Vertex AI Gemini",
+            "project_id": project_id,
+            "location": location,
             "model": config["model"],
             "response_length": len(test_response.content),
             "response_preview": test_response.content[:100] + "..." if len(test_response.content) > 100 else test_response.content
@@ -431,50 +400,15 @@ def test_gemini_provider(api_key: str) -> Dict[str, Any]:
     except Exception as e:
         return {
             "status": "error",
-            "provider": "Gemini",
-            "error": str(e)
-        }
-
-
-def test_bind_tools_compatibility():
-    """Test the bind_tools functionality specifically"""
-    try:
-        # Mock configuration for testing
-        config = {
-            "model": "gemini-2.0-flash-lite-001",
-            "api_key": "test_key",
-            "base_url": "https://generativelanguage.googleapis.com/v1beta/models",
-        }
-        
-        provider = GeminiProvider(config)
-        wrapper = CustomLLMWrapper(provider)
-        
-        # Test bind_tools method
-        mock_tools = [{"type": "function", "function": {"name": "test_tool"}}]
-        bound_wrapper = wrapper.bind_tools(mock_tools)
-        
-        return {
-            "status": "success",
-            "message": "bind_tools method works correctly",
-            "tools_count": len(bound_wrapper._bound_tools)
-        }
-        
-    except Exception as e:
-        return {
-            "status": "error",
+            "provider": "Vertex AI Gemini",
+            "project_id": project_id,
             "error": str(e)
         }
 
 
 if __name__ == "__main__":
-    # Test bind_tools compatibility
-    tools_test = test_bind_tools_compatibility()
-    print(f"Tools compatibility test: {json.dumps(tools_test, indent=2)}")
+    # Test Vertex AI setup
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "deerflow-goa8z")
     
-    # Test with API key if available
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if api_key:
-        result = test_gemini_provider(api_key)
-        print(f"API test result: {json.dumps(result, indent=2)}")
-    else:
-        print("GOOGLE_API_KEY not found in environment - skipping API test")
+    result = test_vertex_ai_setup(project_id)
+    print(f"Vertex AI test result: {json.dumps(result, indent=2)}")
