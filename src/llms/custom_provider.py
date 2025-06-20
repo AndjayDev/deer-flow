@@ -269,6 +269,8 @@ class CustomLLMWrapper(BaseChatModel):
     Full LangChain-compatible wrapper that supports all ChatModel methods
     Updated for Vertex AI compatibility
     """
+    # Declare provider as a Pydantic field (REQUIRED for LangChain BaseChatModel)
+    provider: BaseLLMProvider = Field(...)
     
     def __init__(self, provider: BaseLLMProvider, **kwargs):
         super().__init__(**kwargs)
