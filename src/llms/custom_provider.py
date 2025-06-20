@@ -271,10 +271,11 @@ class CustomLLMWrapper(BaseChatModel):
     """
     # Declare provider as a Pydantic field (REQUIRED for LangChain BaseChatModel)
     provider: BaseLLMProvider = Field(...)
+    model_config = {"arbitrary_types_allowed": True}
     
     def __init__(self, provider: BaseLLMProvider, **kwargs):
-        super().__init__(**kwargs)
-        self.provider = provider
+        super().__init__(provider=provider, **kwargs)
+        # self.provider = provider
         self._bound_tools = []
         self._bound_config = {}
         logger.info(f"Initialized CustomLLMWrapper with {provider.provider_name} provider")
