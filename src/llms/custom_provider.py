@@ -6,6 +6,7 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Iterator, Union, Optional, Callable
+from pydantic import Field  # ← ADD THIS LINE - This was missing!
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableConfig
