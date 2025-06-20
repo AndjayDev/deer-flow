@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 # UPDATED: Now compatible with Vertex AI and your exact .env configuration
 
+from pydantic import Field
 from pathlib import Path
 from typing import Any, Dict, Union
 import os
