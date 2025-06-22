@@ -63,27 +63,43 @@ app.add_middleware(
 graph = build_graph_with_memory()
 
 
+# Located in src/server/app.py
+
 @app.post("/api/chat/stream")
-async def chat_stream(request: ChatRequest):
-    thread_id = request.thread_id
-    if thread_id == "__default__":
-        thread_id = str(uuid4())
-    return StreamingResponse(
-        _astream_workflow_generator(
-            request.model_dump()["messages"],
-            thread_id,
-            request.resources,
-            request.max_plan_iterations,
-            request.max_step_num,
-            request.max_search_results,
-            request.auto_accepted_plan,
-            request.interrupt_feedback,
-            request.mcp_settings,
-            request.enable_background_investigation,
-            request.report_style,
-        ),
-        media_type="text/event-stream",
-    )
+async def chat_stream(body: ChatRequest):
+    """
+    DIAGNOSTIC VERSION: This is a non-streaming endpoint to expose errors.
+    It will return a single JSON object with the final result or an error message.
+    """
+    logger.info(f"Received request for thread_id: {body.thread_id}")
+    
+    # Use a try-except block to catch ANY error that was previously silent
+    try:
+        graph = get_graph()
+        config = body.to_runnable_config()
+        
+        # This is where the magic happens. We'll run the graph to completion.
+        final_state = graph.invoke(body.to_state(), config)
+        
+        logger.info("Graph invocation complete. Final state:")
+        # Log the content of the last message, which should be the AI's response
+        if final_state.get("messages"):
+            last_message = final_state["messages"][-1]
+            logger.info(f"  - Last Message Type: {type(last_message)}")
+            logger.info(f"  - Last Message Content: {last_message.content}")
+
+        # Return the final state as a simple JSON object
+        # If there's a serialization error with the state object, the 'except' block will catch it.
+        return final_state
+
+    except Exception as e:
+        # If ANY error occurs during the graph invocation or return, log it and return it.
+        logger.error(f"FATAL ERROR IN CHAT ENDPOINT: {e}", exc_info=True)
+        return {
+            "error": "A fatal error occurred in the backend",
+            "detail": str(e),
+            "type": str(type(e))
+        }
 
 
 async def _astream_workflow_generator(
