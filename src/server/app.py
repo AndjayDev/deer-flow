@@ -3,6 +3,7 @@
 
 # Add these imports at the top of src/server/app.py
 
+# === Standard Library Imports ===
 import base64
 import json
 import logging
@@ -10,15 +11,17 @@ import os
 from typing import Annotated, List, cast
 from uuid import uuid4
 
+# === Third-Party Imports ===
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from langchain_core.messages import AIMessageChunk, ToolMessage, BaseMessage
 from langgraph.types import Command
 
+# === Local Application Imports ===
 from src.config.report_style import ReportStyle
 from src.config.tools import SELECTED_RAG_PROVIDER
-from src.graph.graph import get_graph  # <-- The critical import is here and correct
+from src.graph.graph import get_graph
 from src.graph.builder import build_graph_with_memory
 from src.podcast.graph.builder import build_graph as build_podcast_graph
 from src.ppt.graph.builder import build_graph as build_ppt_graph
@@ -34,7 +37,7 @@ from src.server.chat_request import (
     GeneratePPTRequest,
     GenerateProseRequest,
     TTSRequest,
-)
+) 
 from src.server.mcp_request import MCPServerMetadataRequest, MCPServerMetadataResponse
 from src.server.mcp_utils import load_mcp_tools
 from src.server.rag_request import (
@@ -68,17 +71,17 @@ graph = build_graph_with_memory()
 
 # Located in src/server/app.py
 
-@app.post("/api/chat/stream")
+@app.post("/api/chat/debug") #renamed from stream to avoid conflicts
 async def chat_stream(body: ChatRequest):
     """
     DIAGNOSTIC VERSION: This is a non-streaming endpoint to expose errors.
     It will return a single JSON object with the final result or an error message.
     """
-    logger.info(f"Received request for thread_id: {body.thread_id}")
+    logger.info(f"[DEBUG] Received request for thread_id: {body.thread_id}")
     
     # Use a try-except block to catch ANY error that was previously silent
     try:
-        graph = get_graph()
+        graph = build_graph_with_memory()
         config = body.to_runnable_config()
         
         # This is where the magic happens. We'll run the graph to completion.
