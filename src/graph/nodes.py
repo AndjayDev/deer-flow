@@ -208,39 +208,58 @@ def human_feedback_node(
 def coordinator_node(
     state: State, config: RunnableConfig
 ) -> Command[Literal["planner", "background_investigator", "__end__"]]:
-    """Coordinator node that communicate with customers."""
+    """
+    Coordinator node that communicates with customers.
+    CORRECTED: Now handles direct LLM answers instead of terminating.
+    """
     logger.info("Coordinator talking.")
     configurable = Configuration.from_runnable_config(config)
     messages = apply_prompt_template("coordinator", state)
-    response = (
-        get_llm_by_type(AGENT_LLM_MAP["coordinator"])
-        .bind_tools([handoff_to_planner])
-        .invoke(messages)
-    )
+    
+    # Use the appropriate LLM for the coordinator agent
+    coordinator_llm = get_llm_by_type(AGENT_LLM_MAP["coordinator"])
+    
+    # Bind the handoff_to_planner tool
+    response = coordinator_llm.bind_tools([handoff_to_planner]).invoke(messages)
+    
     logger.debug(f"Current state messages: {state['messages']}")
 
-    goto = "__end__"
-    locale = state.get("locale", "en-US")  # Default locale if not specified
-
-    if len(response.tool_calls) > 0:
+    goto = "__end__"  # Default action is to end
+    locale = state.get("locale", "en-US")
+    
+    if response.tool_calls and len(response.tool_calls) > 0:
+        logger.info(f"Coordinator is handing off to planner. Tool calls: {len(response.tool_calls)}")
+        # A tool was called, so we proceed to the planner
         goto = "planner"
         if state.get("enable_background_investigation"):
-            # if the search_before_planning is True, add the web search tool to the planner agent
             goto = "background_investigator"
+        
+        # Check for locale in tool calls
         try:
             for tool_call in response.tool_calls:
-                if tool_call.get("name", "") != "handoff_to_planner":
-                    continue
-                if tool_locale := tool_call.get("args", {}).get("locale"):
-                    locale = tool_locale
-                    break
+                if tool_call.get("name", "") == "handoff_to_planner":
+                    if tool_locale := tool_call.get("args", {}).get("locale"):
+                        locale = tool_locale
+                        break
         except Exception as e:
-            logger.error(f"Error processing tool calls: {e}")
+            logger.error(f"Error processing tool calls for locale: {e}")
+            
+    elif response.content and isinstance(response.content, str) and len(response.content.strip()) > 0:
+        # ** THE FIX IS HERE **
+        # No tool call, but we have a direct answer from the LLM.
+        logger.info("Coordinator provided a direct response. Appending to history and ending turn.")
+        
+        # Add the LLM's direct answer to the message history
+        state["messages"].append(response)
+        # The turn ends, but the response is preserved in the state
+        goto = "__end__"
+        
     else:
+        # No tool calls AND no content. This is a true termination condition.
         logger.warning(
-            "Coordinator response contains no tool calls. Terminating workflow execution."
+            "Coordinator response contains no tool calls AND no content. Terminating workflow execution."
         )
-        logger.debug(f"Coordinator response: {response}")
+        logger.debug(f"Coordinator full response object: {response}")
 
     return Command(
         update={"locale": locale, "resources": configurable.resources},
