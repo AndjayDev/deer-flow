@@ -1,6 +1,11 @@
 # Copyright (c) 2025 Bytedance Ltd. and/or its affiliates
 # SPDX-License-Identifier: MIT
 
+# Add these imports at the top of src/server/app.py
+import logging
+from src.graph.graph import get_graph
+from src.server.schema import ChatRequest
+logger = logging.getLogger(__name__)
 import base64
 import json
 import logging
