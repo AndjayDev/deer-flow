@@ -129,7 +129,7 @@ services:
         echo '🦌 Testing credential file access...' &&
         python -c 'import os; print(f\"Credential file exists: {os.path.exists(\"/app/google-vertex-ai-key.json\")}\")'  &&
         echo '🦌 Starting DeerFlow Backend Server on port 8000...' &&
-        uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000 --log-level debug
+        uv run python -m uvicorn src.server.app:app --host 0.0.0.0 --port 8000 --log-level debug --workers 1
       "
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/rag/config"]
