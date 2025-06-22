@@ -115,6 +115,8 @@ services:
         pip install --no-cache-dir uv &&
         echo '🦌 Installing core dependencies from pyproject.toml...' &&
         uv sync &&
+        echo '✅ Forcing installation of Pydantic to fix module error...' &&
+        uv add pydantic pydantic-settings &&
         echo '🦌 Installing research dependencies...' &&
         uv add matplotlib seaborn plotly pillow beautifulsoup4 selenium webdriver-manager mermaid-py diagrams graphviz python-pptx openpyxl xlsxwriter &&
         echo '🦌 Installing Google Cloud dependencies for Vertex AI...' &&
