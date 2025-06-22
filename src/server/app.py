@@ -2,10 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 # Add these imports at the top of src/server/app.py
-import logging
-from src.graph.graph import get_graph
-from src.server.schema import ChatRequest
-logger = logging.getLogger(__name__)
+
 import base64
 import json
 import logging
@@ -21,6 +18,7 @@ from langgraph.types import Command
 
 from src.config.report_style import ReportStyle
 from src.config.tools import SELECTED_RAG_PROVIDER
+from src.graph.graph import get_graph  # <-- The critical import is here and correct
 from src.graph.builder import build_graph_with_memory
 from src.podcast.graph.builder import build_graph as build_podcast_graph
 from src.ppt.graph.builder import build_graph as build_ppt_graph
