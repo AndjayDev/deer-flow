@@ -146,7 +146,7 @@ services:
       - deer-flow-network
       - coolify
 
-  frontend:
+frontend:
     build:
       context: ./web
       dockerfile: Dockerfile.frontend
@@ -169,11 +169,11 @@ services:
     ports:
       - "3000:3000"
     labels:
-      # Core Traefik Configuration
+      # --- Core Traefik Configuration ---
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
       
-      # Frontend HTTPS Routing
+      # --- HTTPS Router for the Frontend ---
       - 'traefik.http.routers.deer-frontend-https.entryPoints=https'
       - 'traefik.http.routers.deer-frontend-https.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-https.service=deer-frontend-service'
@@ -182,17 +182,18 @@ services:
       - 'traefik.http.routers.deer-frontend-https.priority=50'
       - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
       
-      # HTTP to HTTPS Redirect
+      # --- HTTP to HTTPS Redirect Router ---
       - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
       - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
-      # --- START OF FIX for CSP ---
-      # This is the definitive fix based on your research and the browser errors.
-      # 1. Define a new middleware named 'deer-csp' that sets the correct security policy.
+      - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
+
+      # === START OF THE FINAL CSP FIX ===
+      # 1. Define the CSP middleware. This is unchanged and correct.
       - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src 'self' 'unsafe-inline';"
-      - "traefik.http.routers.deer-frontend-https.middlewares=redirect-to-https,frontend-csp"
-      # 2. Apply the new CSP middleware to the HTTPS router
-      # --- END OF FIX ---
+      # 2. Apply the CSP middleware ONLY to the HTTPS router. This is the corrected line.
+      - "traefik.http.routers.deer-frontend-https.middlewares=frontend-csp"
+      # === END OF THE FINAL CSP FIX ===
       
     depends_on:
       backend:
