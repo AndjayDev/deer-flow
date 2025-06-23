@@ -182,18 +182,18 @@ services:
       - 'traefik.http.routers.deer-frontend-https.tls=true'
       - 'traefik.http.routers.deer-frontend-https.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.deer-frontend-https.priority=50'
-      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
       - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
       
       # HTTP to HTTPS Redirect
       - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
       - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
-      # --- START OF CORRECTED CSP FIX ---
-      # 1. Define CSP middleware with Traefik v3.1 syntax and single quotes for Coolify
-      - 'traefik.http.middlewares.frontend-csp.headers.contentsecuritypolicy=default-src self unsafe-inline data:; script-src self unsafe-inline unsafe-eval; style-src self unsafe-inline; connect-src self https://deer-flow.cyberteam.click'
-      # --- END OF UPDATED CSP FIX ---
-
+  # --- START OF FIX for CSP ---
+      # 1. Define the CSP middleware. Using the exact syntax you provided that works.
+      - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src 'self' 'unsafe-inline';"
+      # 2. Apply ONLY the CSP middleware to the HTTPS router. This is the corrected line.
+      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
+      # --- END OF FIX ---
       
     depends_on:
       backend:
