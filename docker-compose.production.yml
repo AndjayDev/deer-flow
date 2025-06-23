@@ -170,7 +170,7 @@ frontend:
       - "3000"
     ports:
       - "3000:3000"
-labels:
+    labels:
       # --- CORE TRAEFIK CONFIG ---
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
@@ -196,7 +196,6 @@ labels:
 
       # --- SERVICE DEFINITION ---
       - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
-
     depends_on:
       backend:
         condition: service_healthy
