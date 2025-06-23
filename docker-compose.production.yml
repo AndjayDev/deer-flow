@@ -170,33 +170,32 @@ frontend:
       - "3000"
     ports:
       - "3000:3000"
-    labels:
+labels:
       # --- CORE TRAEFIK CONFIG ---
-      - "traefik.enable=true"
-      - "traefik.docker.network=coolify"
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=coolify'
 
-      # --- MIDDLEWARE DEFINITIONS (for this service only) ---
+      # --- MIDDLEWARE DEFINITIONS ---
       # 1. Define the HTTP to HTTPS redirect middleware
-      - "traefik.http.middlewares.frontend-redirect.redirectscheme.scheme=https"
-      # 2. Define the Content Security Policy (CSP) middleware using modern syntax
-      - "traefik.http.middlewares.frontend-csp.headers.contentSecurityPolicy=script-src 'self' 'unsafe-inline'"
+      - 'traefik.http.middlewares.frontend-redirect.redirectscheme.scheme=https'
+      # 2. Define the CSP middleware, escaping the inner single quotes by doubling them
+      - 'traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src ''self'' ''unsafe-inline'';'
 
       # --- ROUTER FOR HTTP -> HTTPS REDIRECT ---
-      - "traefik.http.routers.deer-frontend-http.entryPoints=http"
-      - "traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)"
-      - "traefik.http.routers.deer-frontend-http.middlewares=frontend-redirect"
+      - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
+      - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-frontend-http.middlewares=frontend-redirect'
       
       # --- ROUTER FOR HTTPS (The main router) ---
-      - "traefik.http.routers.deer-frontend-https.entryPoints=https"
-      - "traefik.http.routers.deer-frontend-https.rule=Host(`deer-flow.cyberteam.click`)"
-      - "traefik.http.routers.deer-frontend-https.tls=true"
-      - "traefik.http.routers.deer-frontend-https.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.deer-frontend-https.service=deer-frontend-service"
-      # Apply ONLY the CSP middleware to the secure router
-      - "traefik.http.routers.deer-frontend-https.middlewares=frontend-csp"
+      - 'traefik.http.routers.deer-frontend-https.entryPoints=https'
+      - 'traefik.http.routers.deer-frontend-https.rule=Host(`deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-frontend-https.tls=true'
+      - 'traefik.http.routers.deer-frontend-https.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.deer-frontend-https.service=deer-frontend-service'
+      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
 
       # --- SERVICE DEFINITION ---
-      - "traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000"
+      - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
 
     depends_on:
       backend:
