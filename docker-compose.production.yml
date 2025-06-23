@@ -189,11 +189,11 @@ services:
       - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
       # --- START OF CORRECTED CSP FIX ---
-      # 1. Define the CSP middleware using Traefik's dedicated, robust option.
-      - "traefik.http.middlewares.frontend-csp.headers.contentSecurityPolicy=script-src 'self' 'unsafe-inline'"
-      # 2. Apply the correctly defined middleware to the HTTPS router.
+      # 1. Define CSP middleware with Traefik v3.1 syntax and single quotes for Coolify
+      - 'traefik.http.middlewares.frontend-csp.headers.contentsecuritypolicy=default-src self; script-src self unsafe-inline; connect-src self https://deer-flow.cyberteam.click'
+      # 2. Apply CSP middleware to HTTPS router
       - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
-      # --- END OF CORRECTED CSP FIX ---
+      # --- END OF UPDATED CSP FIX ---
       
     depends_on:
       backend:
