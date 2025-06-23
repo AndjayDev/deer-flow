@@ -188,7 +188,7 @@ services:
       - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
       - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
-  # --- START OF FIX for CSP ---
+      # --- START OF FIX for CSP ---
       # 1. Define the CSP middleware. Using the exact syntax you provided that works.
       - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
       # 2. Apply ONLY the CSP middleware to the HTTPS router. This is the corrected line.
