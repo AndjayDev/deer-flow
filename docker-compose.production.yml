@@ -148,7 +148,7 @@ services:
 
 # docker-compose.production.yml, frontend docker service block
 
-frontend:
+  frontend:
     build:
       context: ./web
       dockerfile: Dockerfile.frontend
@@ -171,31 +171,30 @@ frontend:
     ports:
       - "3000:3000"
     labels:
-      # --- CORE TRAEFIK CONFIG ---
+      # Core Traefik Configuration
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
-
-      # --- MIDDLEWARE DEFINITIONS ---
-      # 1. Define the HTTP to HTTPS redirect middleware
-      - 'traefik.http.middlewares.frontend-redirect.redirectscheme.scheme=https'
-      # 2. Define the CSP middleware, escaping the inner single quotes by doubling them
-      - 'traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src ''self'' ''unsafe-inline'';'
-
-      # --- ROUTER FOR HTTP -> HTTPS REDIRECT ---
-      - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
-      - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
-      - 'traefik.http.routers.deer-frontend-http.middlewares=frontend-redirect'
       
-      # --- ROUTER FOR HTTPS (The main router) ---
+      # Frontend HTTPS Routing
       - 'traefik.http.routers.deer-frontend-https.entryPoints=https'
       - 'traefik.http.routers.deer-frontend-https.rule=Host(`deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-frontend-https.service=deer-frontend-service'
       - 'traefik.http.routers.deer-frontend-https.tls=true'
       - 'traefik.http.routers.deer-frontend-https.tls.certresolver=letsencrypt'
-      - 'traefik.http.routers.deer-frontend-https.service=deer-frontend-service'
-      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
-
-      # --- SERVICE DEFINITION ---
+      - 'traefik.http.routers.deer-frontend-https.priority=50'
       - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
+      
+      # HTTP to HTTPS Redirect
+      - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
+      - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
+  # --- START OF FIX for CSP ---
+      # 1. Define the CSP middleware. Using the exact syntax you provided that works.
+      - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src 'self' 'unsafe-inline';"
+      # 2. Apply ONLY the CSP middleware to the HTTPS router. This is the corrected line.
+      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
+      # --- END OF FIX ---
+      
     depends_on:
       backend:
         condition: service_healthy
