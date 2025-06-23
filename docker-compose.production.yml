@@ -189,9 +189,9 @@ services:
       # --- START OF FIX for CSP ---
       # This is the definitive fix based on your research and the browser errors.
       # 1. Define a new middleware named 'deer-csp' that sets the correct security policy.
-      - 'traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src 'self' 'unsafe-inline';"
+      - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src 'self' 'unsafe-inline';"
+      - "traefik.http.routers.deer-frontend-https.middlewares=redirect-to-https,frontend-csp"
       # 2. Apply the new CSP middleware to the HTTPS router
-      - 'traefik.http.routers.deer-frontend-https.middlewares=redirect-to-https,frontend-csp'
       # --- END OF FIX ---
       
     depends_on:
