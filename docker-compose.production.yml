@@ -158,8 +158,8 @@ services:
     container_name: deer-flow-frontend
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
-      - API_URL=https://deer-flow.cyberteam.click/api
+      - NEXT_PUBLIC_API_URL=https://api.deer-flow.cyberteam.click
+      - API_URL=https://api.deer-flow.cyberteam.click
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
