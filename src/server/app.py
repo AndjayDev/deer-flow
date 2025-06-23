@@ -134,9 +134,9 @@ async def _astream_workflow_generator(
                     "interrupt",
                     {
                         "thread_id": thread_id,
-                        "id": event_data["__interrupt__"].ns,
+                        "id": event_data["__interrupt__"][0].ns[0],
                         "role": "assistant",
-                        "content": event_data["__interrupt__"].value,
+                        "content": event_data["__interrupt__"][0].value,
                         "finish_reason": "interrupt",
                         "options": [
                             {"text": "Edit plan", "value": "edit_plan"},
@@ -150,7 +150,7 @@ async def _astream_workflow_generator(
         )
         event_stream_message: dict[str, any] = {
             "thread_id": thread_id,
-            "agent": agent.split(":"),
+            "agent": agent[0].split(":")[0],
             "id": message_chunk.id,
             "role": "assistant",
             "content": message_chunk.content,
@@ -294,7 +294,7 @@ async def generate_prose(request: GenerateProseRequest):
             subgraphs=True,
         )
         return StreamingResponse(
-            (f"data: {event.content}\n\n" async for _, event in events),
+            (f"data: {event[0].content}\n\n" async for _, event in events),
             media_type="text/event-stream",
         )
     except Exception as e:
