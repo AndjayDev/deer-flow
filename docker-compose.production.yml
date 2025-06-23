@@ -1,3 +1,6 @@
+docker-compose.production.yml at 7:35, 23-06-2025
+
+
 services:
   backend:
     build:
@@ -90,7 +93,7 @@ services:
       
       # API HTTPS Routing
       - 'traefik.http.routers.deer-api-https.entryPoints=https'
-      - 'traefik.http.routers.deer-api-https.rule=Host(`api.deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-api-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
       - 'traefik.http.routers.deer-api-https.service=deer-api-service'
       - 'traefik.http.routers.deer-api-https.tls=true'
       - 'traefik.http.routers.deer-api-https.tls.certresolver=letsencrypt'
@@ -99,7 +102,7 @@ services:
       
       # HTTP to HTTPS Redirect
       - 'traefik.http.routers.deer-api-http.entryPoints=http'
-      - 'traefik.http.routers.deer-api-http.rule=Host(`api.deer-flow.cyberteam.click`)'
+      - 'traefik.http.routers.deer-api-http.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
       - 'traefik.http.routers.deer-api-http.middlewares=redirect-to-https'
       - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
       
@@ -153,13 +156,13 @@ services:
       context: ./web
       dockerfile: Dockerfile.frontend
       args:
-        - NEXT_PUBLIC_API_URL=https://api.deer-flow.cyberteam.click
-        - API_URL=https://api.deer-flow.cyberteam.click
+        - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
+        - API_URL=https://deer-flow.cyberteam.click/api
     container_name: deer-flow-frontend
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://api.deer-flow.cyberteam.click
-      - API_URL=https://api.deer-flow.cyberteam.click
+      - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
+      - API_URL=https://deer-flow.cyberteam.click/api
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
@@ -182,24 +185,18 @@ services:
       - 'traefik.http.routers.deer-frontend-https.tls=true'
       - 'traefik.http.routers.deer-frontend-https.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.deer-frontend-https.priority=50'
+      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
       - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
       
       # HTTP to HTTPS Redirect
       - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
       - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
-      # --- START OF FIX for CSP ---
-      # --- CORRECTED CSP & CORS MIDDLEWARE ---
-      # 1. Define CORS middleware for API calls
-      - "traefik.http.middlewares.frontend-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,HEAD"
-      - "traefik.http.middlewares.frontend-cors.headers.accesscontrolalloworiginlist=https://deer-flow.cyberteam.click,https://api.deer-flow.cyberteam.click"
-      - "traefik.http.middlewares.frontend-cors.headers.accesscontrolallowheaders=Content-Type,Authorization,X-Requested-With,Accept,Origin"
-      - "traefik.http.middlewares.frontend-cors.headers.accesscontrolmaxage=86400"
-      # 2. Define CSP middleware (corrected syntax)
-      - "traefik.http.middlewares.frontend-csp.headers.contentsecuritypolicy=script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
-      # 3. Apply BOTH middlewares to HTTPS router
-      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-cors,frontend-csp'
-      # --- END OF CORRECTED MIDDLEWARE ---
+      # --- START OF CORRECTED CSP FIX ---
+      # 1. Define CSP middleware with Traefik v3.1 syntax and single quotes for Coolify
+      - 'traefik.http.middlewares.frontend-csp.headers.contentsecuritypolicy=default-src self unsafe-inline data:; script-src self unsafe-inline unsafe-eval; style-src self unsafe-inline; connect-src self https://deer-flow.cyberteam.click'
+      # --- END OF UPDATED CSP FIX ---
+
       
     depends_on:
       backend:
