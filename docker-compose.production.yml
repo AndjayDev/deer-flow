@@ -146,7 +146,9 @@ services:
       - deer-flow-network
       - coolify
 
-frontend:
+# docker-compose.production.yml, frontend docker service block
+
+  frontend:
     build:
       context: ./web
       dockerfile: Dockerfile.frontend
@@ -169,11 +171,11 @@ frontend:
     ports:
       - "3000:3000"
     labels:
-      # --- Core Traefik Configuration ---
+      # Core Traefik Configuration
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
       
-      # --- HTTPS Router for the Frontend ---
+      # Frontend HTTPS Routing
       - 'traefik.http.routers.deer-frontend-https.entryPoints=https'
       - 'traefik.http.routers.deer-frontend-https.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-https.service=deer-frontend-service'
@@ -182,13 +184,11 @@ frontend:
       - 'traefik.http.routers.deer-frontend-https.priority=50'
       - 'traefik.http.services.deer-frontend-service.loadbalancer.server.port=3000'
       
-      # --- HTTP to HTTPS Redirect Router ---
+      # HTTP to HTTPS Redirect
       - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
       - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
-      - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
-
-      # === START OF THE FINAL CSP FIX ===
+      # --- START OF FIX for CSP ---
       # 1. Define the CSP middleware. This is unchanged and correct.
       - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=script-src 'self' 'unsafe-inline';"
       # 2. Apply the CSP middleware ONLY to the HTTPS router. This is the corrected line.
@@ -202,7 +202,6 @@ frontend:
     networks:
       - deer-flow-network
       - coolify
-
 volumes:
   deer_flow_data:
     driver: local
