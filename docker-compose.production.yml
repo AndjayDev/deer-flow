@@ -153,8 +153,9 @@ services:
       context: ./web
       dockerfile: Dockerfile.frontend
       args:
-        - NEXT_PUBLIC_API_URL=https://deer-flow.cyberteam.click/api
-        - API_URL=https://deer-flow.cyberteam.click/api
+        # 🔧 FIXED: Both frontend build args and runtime env use path-based routing
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://deer-flow.cyberteam.click/api}
+        - API_URL=${API_URL:-https://deer-flow.cyberteam.click/api}
     container_name: deer-flow-frontend
     environment:
       - NODE_ENV=production
