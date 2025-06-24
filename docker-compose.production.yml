@@ -191,8 +191,8 @@ services:
       # --- START OF FIX for CSP ---
       # 1. Define the CSP middleware. Using the exact syntax you provided that works.
       # 🔧 TEMPORARY: CSP disabled for testing (re-enable after confirming functionality)
-      # - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src-elem 'self' 'unsafe-inline'; script-src-attr 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https:; object-src 'none'; base-uri 'self';"
-      # - 'traefik.http.routers.deer-frontend-https.middlewares='
+      - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https:; style-src 'self' 'unsafe-inline';"
+      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
       - 'traefik.http.routers.deer-frontend-https.middlewares='
       
     depends_on:
