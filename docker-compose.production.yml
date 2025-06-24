@@ -188,11 +188,13 @@ services:
       - 'traefik.http.routers.deer-frontend-http.entryPoints=http'
       - 'traefik.http.routers.deer-frontend-http.rule=Host(`deer-flow.cyberteam.click`)'
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
+      - traefik.http.middlewares.gzip.compress=true
+      - 'traefik.http.routers.deer-frontend-https.middlewares=gzip'
       # --- START OF FIX for CSP ---
       # 1. Define the CSP middleware. Using the exact syntax you provided that works.
       # 🔧 TEMPORARY: CSP disabled for testing (re-enable after confirming functionality)
-      - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src-elem 'self' 'unsafe-inline'; connect-src 'self' https:; style-src 'self' 'unsafe-inline';"
-      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
+      # - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src-elem 'self' 'unsafe-inline'; connect-src 'self' https:; style-src 'self' 'unsafe-inline';"
+      # - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
 
       
     depends_on:
