@@ -8,8 +8,8 @@ services:
       # === CORE SYSTEM CONFIGURATION ===
       - NODE_ENV=production
       - PORT=8000
-      - BACKEND_URL=https://api.deer-flow.cyberteam.click
-      - API_BASE_URL=https://api.deer-flow.cyberteam.click
+      - BACKEND_URL==${BACKEND_URL}
+      - API_BASE_URL=${API_BASE_URL}
 
       # === VERTEX AI AUTHENTICATION (EXACT VALUES FROM .ENV) ===
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
