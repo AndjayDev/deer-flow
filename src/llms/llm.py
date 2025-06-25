@@ -11,6 +11,7 @@ import logging
 from langchain_openai import ChatOpenAI
 from src.config import load_yaml_config
 from src.config.agents import LLMType
+from src.config.agents import AGENT_LLM_MAP
 
 # Import Vertex AI compatible custom provider system
 try:
@@ -404,7 +405,9 @@ def get_structured_output_llm(agent_type: str, schema_class, fallback_method: st
         LLM instance configured with appropriate structured output method
     """
     # Get the base LLM instance using existing system
-    base_llm = get_llm_by_type(agent_type)
+    llm_type = AGENT_LLM_MAP.get(agent_type, agent_type)  # ← ADD THIS LINE
+    base_llm = get_llm_by_type(llm_type)
+    # base_llm = get_llm_by_type(agent_type)
     
     # Detect provider capabilities
     capabilities = _detect_provider_capabilities(base_llm)
