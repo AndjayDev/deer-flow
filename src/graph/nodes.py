@@ -143,11 +143,9 @@ def planner_node(
             }
         ]
 
+    # 🔧 CRITICAL FIX: Remove json_mode parameter for Gemini compatibility
     if AGENT_LLM_MAP["planner"] == "basic":
-        llm = get_llm_by_type(AGENT_LLM_MAP["planner"]).with_structured_output(
-            Plan,
-            method="json_mode",
-        )
+        llm = get_llm_by_type(AGENT_LLM_MAP["planner"]).with_structured_output(Plan)
     else:
         llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
 
