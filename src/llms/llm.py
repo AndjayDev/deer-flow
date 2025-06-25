@@ -382,3 +382,156 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Vertex AI system test failed: {e}")
         logger.error(f"Vertex AI system test failed: {e}")
+
+
+# ============================================================================***
+# *********** MULTI-LLM STRUCTURED OUTPUT COMPATIBILITY LAYER ************
+# ============================================================================***
+
+def get_structured_output_llm(agent_type: str, schema_class, fallback_method: str = None):
+    """
+    Get LLM with structured output capability detection.
+    
+    This function wraps get_llm_by_type() and automatically determines
+    whether to use json_mode or native structured output based on the provider.
+    
+    Args:
+        agent_type: The agent type from AGENT_LLM_MAP ("planner", "coordinator", etc.)
+        schema_class: The Pydantic schema class (e.g., Plan)
+        fallback_method: Override method if auto-detection fails
+    
+    Returns:
+        LLM instance configured with appropriate structured output method
+    """
+    # Get the base LLM instance using existing system
+    base_llm = get_llm_by_type(agent_type)
+    
+    # Detect provider capabilities
+    capabilities = _detect_provider_capabilities(base_llm)
+    
+    # Determine structured output method
+    if fallback_method:
+        # Use explicit override
+        method = fallback_method
+        logger.info(f"Using fallback method '{method}' for {agent_type}")
+    elif capabilities["supports_json_mode"]:
+        # Provider supports json_mode (OpenAI, Perplexity, Groq)
+        method = "json_mode"
+        logger.info(f"Using json_mode for {capabilities['provider']} ({agent_type})")
+    else:
+        # Provider uses native function calling (Gemini, Anthropic)
+        method = None  # Default structured output
+        logger.info(f"Using native structured output for {capabilities['provider']} ({agent_type})")
+    
+    # Create structured output LLM
+    try:
+        if method:
+            return base_llm.with_structured_output(schema_class, method=method)
+        else:
+            return base_llm.with_structured_output(schema_class)
+    except Exception as e:
+        logger.error(f"Failed to create structured output LLM for {agent_type}: {e}")
+        
+        # Fallback: try without method parameter
+        logger.warning(f"Attempting fallback for {agent_type}")
+        try:
+            return base_llm.with_structured_output(schema_class)
+        except Exception as fallback_error:
+            logger.error(f"Fallback also failed for {agent_type}: {fallback_error}")
+            raise ValueError(f"Could not create structured output LLM: {e}")
+
+
+def _detect_provider_capabilities(llm_instance) -> dict:
+    """
+    Detect LLM provider capabilities based on instance type.
+    
+    This uses static mapping for reliability - no runtime testing needed.
+    """
+    llm_class_name = llm_instance.__class__.__name__
+    
+    # Static capability mapping
+    capability_map = {
+        # OpenAI-compatible providers (support json_mode)
+        "ChatOpenAI": {
+            "provider": "openai",
+            "supports_json_mode": True,
+            "supports_function_calling": True
+        },
+        "ChatPerplexity": {
+            "provider": "perplexity", 
+            "supports_json_mode": True,
+            "supports_function_calling": True
+        },
+        "ChatGroq": {
+            "provider": "groq",
+            "supports_json_mode": True,
+            "supports_function_calling": True
+        },
+        
+        # Google providers (native function calling only)
+        "ChatVertexAI": {
+            "provider": "google_vertex",
+            "supports_json_mode": False,
+            "supports_function_calling": True
+        },
+        "ChatGoogleGenerativeAI": {
+            "provider": "google_ai",
+            "supports_json_mode": False,
+            "supports_function_calling": True
+        },
+        
+        # Anthropic (native function calling only)
+        "ChatAnthropic": {
+            "provider": "anthropic",
+            "supports_json_mode": False,
+            "supports_function_calling": True
+        },
+        
+        # Custom wrapper for your Vertex AI system
+        "CustomLLMWrapper": {
+            "provider": "vertex_ai_custom",
+            "supports_json_mode": False,
+            "supports_function_calling": True
+        }
+    }
+    
+    # Look up capabilities
+    capabilities = capability_map.get(llm_class_name)
+    
+    if capabilities:
+        logger.debug(f"Detected provider: {capabilities['provider']} (class: {llm_class_name})")
+        return capabilities
+    else:
+        # Unknown provider - use safe defaults
+        logger.warning(f"Unknown LLM class: {llm_class_name}, using safe defaults")
+        return {
+            "provider": "unknown",
+            "supports_json_mode": False,  # Safe default
+            "supports_function_calling": True
+        }
+
+
+def get_provider_info(agent_type: str) -> dict:
+    """
+    Get provider information for debugging purposes.
+    
+    Returns:
+        Dictionary with provider details for the specified agent type
+    """
+    try:
+        llm = get_llm_by_type(agent_type)
+        capabilities = _detect_provider_capabilities(llm)
+        
+        return {
+            "agent_type": agent_type,
+            "llm_class": llm.__class__.__name__,
+            "provider": capabilities["provider"],
+            "supports_json_mode": capabilities["supports_json_mode"],
+            "supports_function_calling": capabilities["supports_function_calling"],
+            "model_info": getattr(llm, 'model_name', 'unknown') if hasattr(llm, 'model_name') else 'unknown'
+        }
+    except Exception as e:
+        return {
+            "agent_type": agent_type,
+            "error": str(e)
+        }
