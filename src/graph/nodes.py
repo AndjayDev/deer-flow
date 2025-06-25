@@ -4,7 +4,7 @@
 import json
 import logging
 import os
-from typing import Annotated, Literal
+from typing import Annotated, Literal, List
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -33,6 +33,16 @@ from ..config import SELECTED_SEARCH_ENGINE, SearchEngine
 
 logger = logging.getLogger(__name__)
 
+# ← FIXED: Added missing handoff_to_planner tool
+@tool
+def handoff_to_planner(
+    task_title: Annotated[str, "The title of the task to be handed off."],
+    locale: Annotated[str, "The user's detected language locale (e.g., en-US, zh-CN)."],
+):
+    """Handoff to planner agent to do plan."""
+    # This tool is not returning anything: we're just using it
+    # as a way for LLM to signal that it needs to hand off to planner agent
+    return
 
 # Add these new tools at the top of the file, after the existing @tool decorator
 @tool
