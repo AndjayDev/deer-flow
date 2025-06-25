@@ -88,14 +88,32 @@ services:
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
       
-      # API HTTPS Routing
+      # 🔧 FIX: Separate HTTP/2 and HTTP/1.1 routing for streaming
+      
+      # API HTTPS Routing (General API - HTTP/2 OK)
       - 'traefik.http.routers.deer-api-https.entryPoints=https'
-      - 'traefik.http.routers.deer-api-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
+      - 'traefik.http.routers.deer-api-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`) && !PathPrefix(`/api/chat/stream`)'
       - 'traefik.http.routers.deer-api-https.service=deer-api-service'
       - 'traefik.http.routers.deer-api-https.tls=true'
       - 'traefik.http.routers.deer-api-https.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.deer-api-https.priority=200'
+      
+      # 🔧 STREAMING ENDPOINT - Force HTTP/1.1
+      - 'traefik.http.routers.deer-stream-https.entryPoints=https'
+      - 'traefik.http.routers.deer-stream-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api/chat/stream`)'
+      - 'traefik.http.routers.deer-stream-https.service=deer-stream-service'
+      - 'traefik.http.routers.deer-stream-https.tls=true'
+      - 'traefik.http.routers.deer-stream-https.tls.certresolver=letsencrypt'
+      - 'traefik.http.routers.deer-stream-https.priority=300'
+      
+      # 🔧 CRITICAL: HTTP/1.1 Configuration for Streaming
+      - 'traefik.http.middlewares.force-http1.headers.customrequestheaders.Connection=Upgrade'
+      - 'traefik.http.middlewares.force-http1.headers.customrequestheaders.Upgrade='
+      - 'traefik.http.routers.deer-stream-https.middlewares=force-http1'
+      
+      # Service Definitions
       - 'traefik.http.services.deer-api-service.loadbalancer.server.port=8000'
+      - 'traefik.http.services.deer-stream-service.loadbalancer.server.port=8000'
       
       # HTTP to HTTPS Redirect
       - 'traefik.http.routers.deer-api-http.entryPoints=http'
@@ -146,8 +164,6 @@ services:
       - deer-flow-network
       - coolify
 
-# docker-compose.production.yml, frontend docker service block
-
   frontend:
     build:
       context: ./web
@@ -190,12 +206,6 @@ services:
       - 'traefik.http.routers.deer-frontend-http.middlewares=redirect-to-https'
       - traefik.http.middlewares.gzip.compress=true
       - 'traefik.http.routers.deer-frontend-https.middlewares=gzip'
-      # --- START OF FIX for CSP ---
-      # 1. Define the CSP middleware. Using the exact syntax you provided that works.
-      # 🔧 TEMPORARY: CSP disabled for testing (re-enable after confirming functionality)
-      - "traefik.http.middlewares.frontend-csp.headers.customresponseheaders.Content-Security-Policy=default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src-elem 'self' 'unsafe-inline'; connect-src 'self' https:; style-src 'self' 'unsafe-inline';"
-      - 'traefik.http.routers.deer-frontend-https.middlewares=frontend-csp'
-
       
     depends_on:
       backend:
@@ -204,6 +214,7 @@ services:
     networks:
       - deer-flow-network
       - coolify
+
 volumes:
   deer_flow_data:
     driver: local
