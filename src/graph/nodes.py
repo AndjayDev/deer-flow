@@ -34,7 +34,6 @@ from ..config import SELECTED_SEARCH_ENGINE, SearchEngine
 logger = logging.getLogger(__name__)
 
 
-@tool
 # Add these new tools at the top of the file, after the existing @tool decorator
 @tool
 def classify_research_complexity(
@@ -75,36 +74,6 @@ def assess_multi_domain_needs(
 ):
     """Assess need for multi-domain expert collaboration"""
     return f"Multi-domain research: {primary_domain} + {secondary_domains}"
-
-@tool  
-def route_specialist_research(
-    research_type: str,
-    required_expertise: List[str],
-    expected_deliverable: Literal["brief", "analysis", "comprehensive_report", "strategic_recommendation"]
-):
-    """Route to specialized research workflows based on domain expertise needed"""
-    return f"Routing to {research_type} specialist for {expected_deliverable}"
-
-@tool
-def route_domain_expert(
-    domain: Literal["scientific", "strategic", "marketing", "sales", "product", "geopolitical", "psychological"],
-    research_depth: Literal["surface", "detailed", "comprehensive", "expert_level"],
-    collaboration_needed: bool,
-    time_sensitivity: Literal["immediate", "within_24h", "this_week", "strategic_timeline"]
-):
-    """Route to domain-specific expert teams (like Avery Itzak personas)"""
-    return f"Routing to {domain} expert team for {research_depth} analysis"
-
-@tool
-def assess_multi_domain_needs(
-    primary_domain: str,
-    secondary_domains: List[str],
-    cross_domain_validation: bool,
-    synthesis_complexity: Literal["basic", "intermediate", "advanced", "expert"]
-):
-    """Assess need for multi-domain expert collaboration"""
-    return f"Multi-domain research: {primary_domain} + {secondary_domains}"
-
 
 def background_investigation_node(state: State, config: RunnableConfig):
     logger.info("background investigation node is running.")
