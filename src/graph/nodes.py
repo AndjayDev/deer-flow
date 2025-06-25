@@ -35,14 +35,46 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def handoff_to_planner(
-    task_title: Annotated[str, "The title of the task to be handed off."],
-    locale: Annotated[str, "The user's detected language locale (e.g., en-US, zh-CN)."],
+# Add these new tools at the top of the file, after the existing @tool decorator
+@tool
+def classify_research_complexity(
+    query: str,
+    domains: List[str],  # ["scientific", "strategic", "marketing", "sales", "product", "geopolitical", "psychological"]
+    complexity: Literal["simple", "moderate", "complex", "comprehensive"],
+    requires_real_time: bool,
+    stakeholder_level: Literal["individual", "team", "executive", "industry"]
 ):
-    """Handoff to planner agent to do plan."""
-    # This tool is not returning anything: we're just using it
-    # as a way for LLM to signal that it needs to hand off to planner agent
-    return
+    """Classify research requirements and route to appropriate workflow"""
+    return f"Classified as {complexity} {domains} research requiring {'real-time' if requires_real_time else 'historical'} data"
+
+@tool  
+def route_specialist_research(
+    research_type: str,
+    required_expertise: List[str],
+    expected_deliverable: Literal["brief", "analysis", "comprehensive_report", "strategic_recommendation"]
+):
+    """Route to specialized research workflows based on domain expertise needed"""
+    return f"Routing to {research_type} specialist for {expected_deliverable}"
+
+@tool
+def route_domain_expert(
+    domain: Literal["scientific", "strategic", "marketing", "sales", "product", "geopolitical", "psychological"],
+    research_depth: Literal["surface", "detailed", "comprehensive", "expert_level"],
+    collaboration_needed: bool,
+    time_sensitivity: Literal["immediate", "within_24h", "this_week", "strategic_timeline"]
+):
+    """Route to domain-specific expert teams (like Avery Itzak personas)"""
+    return f"Routing to {domain} expert team for {research_depth} analysis"
+
+@tool
+def assess_multi_domain_needs(
+    primary_domain: str,
+    secondary_domains: List[str],
+    cross_domain_validation: bool,
+    synthesis_complexity: Literal["basic", "intermediate", "advanced", "expert"]
+):
+    """Assess need for multi-domain expert collaboration"""
+    return f"Multi-domain research: {primary_domain} + {secondary_domains}"
 
 
 def background_investigation_node(state: State, config: RunnableConfig):
@@ -207,62 +239,132 @@ def human_feedback_node(
 
 def coordinator_node(
     state: State, config: RunnableConfig
-) -> Command[Literal["planner", "background_investigator", "__end__"]]:
+) -> Command[Literal["planner", "background_investigator", "domain_specialist", "__end__"]]:
     """
-    Coordinator node that communicates with customers.
-    CORRECTED: Now handles direct LLM answers instead of terminating.
+    Enhanced Coordinator with Multi-Domain Intelligence Routing
+    Based on Avery Itzak persona structure for domain expertise
     """
-    logger.info("Coordinator talking.")
+    logger.info("Enhanced Coordinator analyzing query for domain routing.")
     configurable = Configuration.from_runnable_config(config)
     messages = apply_prompt_template("coordinator", state)
     
     # Use the appropriate LLM for the coordinator agent
     coordinator_llm = get_llm_by_type(AGENT_LLM_MAP["coordinator"])
     
-    # Bind the handoff_to_planner tool
-    response = coordinator_llm.bind_tools([handoff_to_planner]).invoke(messages)
+    # ENHANCED: Bind multiple intelligence routing tools
+    enhanced_tools = [
+        classify_research_complexity,
+        route_specialist_research,
+        route_domain_expert,
+        assess_multi_domain_needs,
+        handoff_to_planner  # Keep original for general research
+    ]
     
-    logger.debug(f"Current state messages: {state['messages']}")
+    response = coordinator_llm.bind_tools(enhanced_tools).invoke(messages)
+    
+    logger.debug(f"Enhanced coordinator analysis: {response}")
 
-    goto = "__end__"  # Default action is to end
+    goto = "__end__"  # Default action
     locale = state.get("locale", "en-US")
+    domain_context = {}
     
     if response.tool_calls and len(response.tool_calls) > 0:
-        logger.info(f"Coordinator is handing off to planner. Tool calls: {len(response.tool_calls)}")
-        # A tool was called, so we proceed to the planner
-        goto = "planner"
-        if state.get("enable_background_investigation"):
-            goto = "background_investigator"
+        tool_call = response.tool_calls[0]
+        tool_name = tool_call.get("name", "")
+        tool_args = tool_call.get("args", {})
         
+        logger.info(f"Coordinator tool called: {tool_name}")
+        
+        # Route based on specific intelligence type
+        if tool_name == "route_domain_expert":
+            domain = tool_args.get("domain", "general")
+            goto = "domain_specialist"
+            domain_context = {
+                "selected_domain": domain,
+                "research_depth": tool_args.get("research_depth", "detailed"),
+                "collaboration_needed": tool_args.get("collaboration_needed", False)
+            }
+            logger.info(f"Routing to {domain} domain specialist")
+            
+        elif tool_name == "route_specialist_research":
+            research_type = tool_args.get("research_type", "general")
+            goto = "planner"  # Enhanced planner workflow
+            domain_context = {
+                "research_type": research_type,
+                "expertise_needed": tool_args.get("required_expertise", []),
+                "deliverable": tool_args.get("expected_deliverable", "analysis")
+            }
+            logger.info(f"Routing to specialist research: {research_type}")
+            
+        elif tool_name == "assess_multi_domain_needs":
+            goto = "planner"  # Multi-domain research workflow
+            domain_context = {
+                "multi_domain": True,
+                "primary_domain": tool_args.get("primary_domain"),
+                "secondary_domains": tool_args.get("secondary_domains", []),
+                "synthesis_complexity": tool_args.get("synthesis_complexity", "intermediate")
+            }
+            logger.info("Routing to multi-domain research workflow")
+            
+        elif tool_name == "classify_research_complexity":
+            complexity = tool_args.get("complexity", "moderate")
+            domains = tool_args.get("domains", ["general"])
+            
+            # Route based on complexity and domains
+            if complexity in ["complex", "comprehensive"] or len(domains) > 1:
+                goto = "planner"  # Complex research workflow
+            else:
+                goto = "planner"  # Standard research workflow
+                
+            domain_context = {
+                "complexity": complexity,
+                "domains": domains,
+                "requires_real_time": tool_args.get("requires_real_time", False),
+                "stakeholder_level": tool_args.get("stakeholder_level", "individual")
+            }
+            
+        elif tool_name == "handoff_to_planner":
+            goto = "planner"  # General research workflow
+            logger.info("Routing to general research workflow")
+            
+        # Background investigation for complex research
+        if goto != "__end__" and state.get("enable_background_investigation"):
+            goto = "background_investigator"
+            
         # Check for locale in tool calls
         try:
-            for tool_call in response.tool_calls:
-                if tool_call.get("name", "") == "handoff_to_planner":
-                    if tool_locale := tool_call.get("args", {}).get("locale"):
-                        locale = tool_locale
-                        break
+            if tool_locale := tool_args.get("locale"):
+                locale = tool_locale
         except Exception as e:
-            logger.error(f"Error processing tool calls for locale: {e}")
+            logger.error(f"Error processing tool call locale: {e}")
             
     elif response.content and isinstance(response.content, str) and len(response.content.strip()) > 0:
-        # ** THE FIX IS HERE **
-        # No tool call, but we have a direct answer from the LLM.
-        logger.info("Coordinator provided a direct response. Appending to history and ending turn.")
+        # Simple queries get direct responses
+        content_length = len(response.content.strip())
         
-        # Add the LLM's direct answer to the message history
-        state["messages"].append(response)
-        # The turn ends, but the response is preserved in the state
-        goto = "__end__"
+        # Only provide direct response for truly simple queries
+        if content_length < 200 and not any(keyword in response.content.lower() 
+                                          for keyword in ["research", "analyze", "compare", "explain", "latest", "current"]):
+            logger.info("Coordinator provided direct response for simple query.")
+            state["messages"].append(response)
+            goto = "__end__"
+        else:
+            # For longer or complex-seeming responses, trigger research workflow
+            logger.info("Coordinator response suggests research needed, routing to planner.")
+            goto = "planner"
         
     else:
-        # No tool calls AND no content. This is a true termination condition.
-        logger.warning(
-            "Coordinator response contains no tool calls AND no content. Terminating workflow execution."
-        )
-        logger.debug(f"Coordinator full response object: {response}")
+        # No tool calls AND no content
+        logger.warning("Coordinator response contains no tool calls AND no content. Terminating.")
+        logger.debug(f"Coordinator full response: {response}")
 
     return Command(
-        update={"locale": locale, "resources": configurable.resources},
+        update={
+            "locale": locale, 
+            "resources": configurable.resources,
+            "domain_context": domain_context,
+            "coordinator_decision": tool_name if response.tool_calls else "direct_response"
+        },
         goto=goto,
     )
 
