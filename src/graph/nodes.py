@@ -76,6 +76,35 @@ def assess_multi_domain_needs(
     """Assess need for multi-domain expert collaboration"""
     return f"Multi-domain research: {primary_domain} + {secondary_domains}"
 
+@tool  
+def route_specialist_research(
+    research_type: str,
+    required_expertise: List[str],
+    expected_deliverable: Literal["brief", "analysis", "comprehensive_report", "strategic_recommendation"]
+):
+    """Route to specialized research workflows based on domain expertise needed"""
+    return f"Routing to {research_type} specialist for {expected_deliverable}"
+
+@tool
+def route_domain_expert(
+    domain: Literal["scientific", "strategic", "marketing", "sales", "product", "geopolitical", "psychological"],
+    research_depth: Literal["surface", "detailed", "comprehensive", "expert_level"],
+    collaboration_needed: bool,
+    time_sensitivity: Literal["immediate", "within_24h", "this_week", "strategic_timeline"]
+):
+    """Route to domain-specific expert teams (like Avery Itzak personas)"""
+    return f"Routing to {domain} expert team for {research_depth} analysis"
+
+@tool
+def assess_multi_domain_needs(
+    primary_domain: str,
+    secondary_domains: List[str],
+    cross_domain_validation: bool,
+    synthesis_complexity: Literal["basic", "intermediate", "advanced", "expert"]
+):
+    """Assess need for multi-domain expert collaboration"""
+    return f"Multi-domain research: {primary_domain} + {secondary_domains}"
+
 
 def background_investigation_node(state: State, config: RunnableConfig):
     logger.info("background investigation node is running.")
@@ -239,7 +268,7 @@ def human_feedback_node(
 
 def coordinator_node(
     state: State, config: RunnableConfig
-) -> Command[Literal["planner", "background_investigator", "domain_specialist", "__end__"]]:
+) -> Command[Literal["planner", "background_investigator", "__end__"]]:  # ← FIXED: Removed domain_specialist for now
     """
     Enhanced Coordinator with Multi-Domain Intelligence Routing
     Based on Avery Itzak persona structure for domain expertise
@@ -278,13 +307,13 @@ def coordinator_node(
         # Route based on specific intelligence type
         if tool_name == "route_domain_expert":
             domain = tool_args.get("domain", "general")
-            goto = "domain_specialist"
+            goto = "planner"  # ← FIXED: Route to planner for now, will add domain_specialist later
             domain_context = {
                 "selected_domain": domain,
                 "research_depth": tool_args.get("research_depth", "detailed"),
                 "collaboration_needed": tool_args.get("collaboration_needed", False)
             }
-            logger.info(f"Routing to {domain} domain specialist")
+            logger.info(f"Routing to planner with {domain} domain context")
             
         elif tool_name == "route_specialist_research":
             research_type = tool_args.get("research_type", "general")
@@ -328,7 +357,7 @@ def coordinator_node(
             logger.info("Routing to general research workflow")
             
         # Background investigation for complex research
-        if goto != "__end__" and state.get("enable_background_investigation"):
+        if goto == "planner" and state.get("enable_background_investigation"):
             goto = "background_investigator"
             
         # Check for locale in tool calls
