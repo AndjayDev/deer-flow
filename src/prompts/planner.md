@@ -151,25 +151,9 @@ When planning information gathering, consider these key aspects and ensure COMPR
 - Use the same language as the user to generate the plan.
 - Do not include steps for summarizing or consolidating the gathered information.
 
-# Output Format
+# Output Instructions
 
-Directly output the raw JSON format of `Plan` without "```json". The `Plan` interface is defined as follows:
-
-```ts
-interface Step {
-  need_search: boolean; // Must be explicitly set for each step
-  title: string;
-  description: string; // Specify exactly what data to collect. If the user input contains a link, please retain the full Markdown format when necessary.
-  step_type: "research" | "processing"; // Indicates the nature of the step
-}
-
-interface Plan {
-  locale: string; // e.g. "en-US" or "zh-CN", based on the user's language or specific request
-  has_enough_context: boolean;
-  thought: string;
-  title: string;
-  steps: Step[]; // Research & Processing steps to get more context
-}
+You must respond by calling the `Plan` tool. Your entire response will be structured according to this tool's schema. Do not add any conversational text or markdown formatting like "```json" around your output. Fulfill the user's request by providing the necessary arguments to the `Plan` tool based on your analysis.
 ```
 
 # Notes
