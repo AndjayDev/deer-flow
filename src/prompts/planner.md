@@ -129,18 +129,3 @@ Here is the JSON schema for the `Plan` object:
     }
   }
 }
-
-
-# Notes
-
-- Focus on information gathering in research steps - delegate all calculations to processing steps
-- Ensure each step has a clear, specific data point or information to collect
-- Create a comprehensive data collection plan that covers the most critical aspects within {{ max_step_num }} steps
-- Prioritize BOTH breadth (covering essential aspects) AND depth (detailed information on each aspect)
-- Never settle for minimal information - the goal is a comprehensive, detailed final report
-- Limited or insufficient information will lead to an inadequate final report
-- Carefully assess each step's web search or retrieve from URL requirement based on its nature:
-  - Research steps (`need_search: true`) for gathering information
-  - Processing steps (`need_search: false`) for calculations and data processing
-- Default to gathering more information unless the strictest sufficient context criteria are met
-- Always use the language specified by the locale = **{{ locale }}**.
