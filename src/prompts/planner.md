@@ -151,12 +151,16 @@ When planning information gathering, consider these key aspects and ensure COMPR
 - Use the same language as the user to generate the plan.
 - Do not include steps for summarizing or consolidating the gathered information.
 
-# Output Format Instructions
+# Output Instructions (Tool Mode)
+[output_instructions_tool_mode]
+You MUST respond by calling the `Plan` tool. Your entire response will be structured according to this tool's schema. Do not add any conversational text or markdown formatting around your output. Fulfill the user's request by providing the necessary arguments to the `Plan` tool based on your analysis.
+[/output_instructions_tool_mode]
 
+# Output Instructions (JSON Mode)
+[output_instructions_json_mode]
 You MUST respond with a single, valid JSON object that strictly adheres to the `Plan` JSON schema provided below. Do NOT include any other text, explanations, or markdown formatting like "```json" outside of the main JSON object. Your entire response must be parsable as JSON.
 
 Here is the JSON schema for the `Plan` object:
-
 ```json
 {
   "title": "Plan",
@@ -223,6 +227,49 @@ Here is the JSON schema for the `Plan` object:
   }
 }
 ```
+[/output_instructions_json_mode]
+
+#### **Step 2: Add Logic to Select the Correct Instruction**
+
+Now, we need to teach your `apply_prompt_template` function to choose the right block.
+
+**ACTION:** I need you to show me the file where `apply_prompt_template` is defined. It's likely in `src/prompts/template.py`. Once I see it, I can give you the exact code to insert.
+
+The logic will look something like this (this is a conceptual example):
+
+```python
+# In the file where apply_prompt_template is defined
+
+JSON_MODE_PROVIDERS = ["openai", "groq", "perplexity"] # Add any others here
+
+def apply_prompt_template(template_name: str, state: State, configurable: Configuration) -> List[Dict]:
+    # ... (existing code to load the prompt file) ...
+    prompt_content = load_prompt(f"{template_name}.md")
+
+    # Determine which provider is active for the current agent
+    active_provider = configurable.get_provider_for_agent(template_name) # You will need a helper like this
+
+    if active_provider in JSON_MODE_PROVIDERS:
+        # Select the JSON mode instructions
+        instructions = extract_block(prompt_content, "output_instructions_json_mode")
+    else:
+        # Default to tool mode instructions (for Gemini, Anthropic)
+        instructions = extract_block(prompt_content, "output_instructions_tool_mode")
+
+    # Replace a placeholder in the main prompt with the selected instructions
+    final_prompt = prompt_content.replace("{{ OUTPUT_INSTRUCTIONS }}", instructions)
+
+    # ... (rest of the function to apply other variables and return messages) ...
+```This is the robust, long-term solution. It makes your prompting system adaptive.
+
+### **Summary and Next Steps**
+
+1.  **Acknowledge the Progress:** Your system is no longer crashing on startup. This is a significant milestone.
+2.  **Update the Prompt File:** Modify `src/prompts/planner.md` to include the two separate instruction blocks (`[output_instructions_tool_mode]` and `[output_instructions_json_mode]`).
+3.  **Provide the Template Logic:** Show me the `apply_prompt_template` function and its surrounding file (`src/prompts/template.py` is my best guess). I will then give you the precise Python code to intelligently select the correct instructions based on the active LLM provider.
+
+We are very close. This final step will align the instructions perfectly with each model's capabilities, resolving the data contract failure for good.
+
 
 # Notes
 
