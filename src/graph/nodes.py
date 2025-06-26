@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Annotated, Literal, List
 
+from langchain_core.output_parsers import PydanticToolsParser
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
@@ -146,31 +147,38 @@ def planner_node(
     if plan_iterations >= configurable.max_plan_iterations:
         return Command(goto="reporter")
 
-    # --- AVERY'S FINAL FIX: START ---
+    # --- AVERY'S EVIDENCE-BASED FIX (Solution 2 from the document): START ---
     try:
-        # Step 1: Get the base LLM for the planner. We don't need get_structured_output_llm here anymore.
+        # Step 1: Get the base LLM for the planner.
         base_llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
 
-        # Step 2: Use .with_structured_output() directly. This is the key.
-        # This method correctly handles whether to use tool_calling or json_mode based on the LLM provider.
-        structured_llm = base_llm.with_structured_output(Plan)
+        # Step 2: Bind the Plan schema as a tool, forcing the model to use it.
+        # This is the most reliable method for Gemini according to the intel.
+        llm_with_tools = base_llm.bind_tools([Plan], tool_choice="Plan")
         
-        # Step 3: Invoke the new, correctly configured LLM.
-        response_plan_object = structured_llm.invoke(messages)
-        
-        if not isinstance(response_plan_object, Plan):
-            raise TypeError(f"LLM did not return a valid 'Plan' object. Got: {type(response_plan_object)}")
+        # Step 3: Explicitly define the parser that knows how to handle tool calls.
+        # We only care about the first tool call that matches our 'Plan' schema.
+        parser = PydanticToolsParser(tools=[Plan], first_tool_only=True)
 
-        logger.info(f"Planner response successfully parsed into Plan object.")
+        # Step 4: Create a chain that pipes the LLM's tool-calling output directly into our parser.
+        chain = llm_with_tools | parser
+        
+        # Step 5: Invoke the chain. The output will be a clean Pydantic 'Plan' object.
+        response_plan_object = chain.invoke(messages)
+
+        if not isinstance(response_plan_object, Plan):
+            raise TypeError(f"Parser chain did not return a valid 'Plan' object. Got: {type(response_plan_object)}")
+
+        logger.info(f"Planner response successfully parsed from tool call via chain.")
         full_response_json = response_plan_object.model_dump_json(indent=4, exclude_none=True)
         
     except Exception as e:
-        logger.error(f"Planner LLM failed to return a valid structured output: {e}")
+        logger.error(f"Planner chain failed to produce a valid plan: {e}")
         if plan_iterations > 0:
             return Command(goto="reporter")
         else:
             return Command(goto="__end__")
-    # --- AVERY'S FINAL FIX: END ---
+    # --- AVERY'S EVIDENCE-BASED FIX: END ---
 
     if response_plan_object.has_enough_context:
         logger.info("Planner response has enough context.")
