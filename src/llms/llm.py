@@ -345,44 +345,63 @@ def get_vision_llm() -> Union[ChatOpenAI, CustomLLMWrapper]:
     return get_llm_by_type("vision")  # gemini-2.5-pro-preview-06-05 with vision
 
 
-if __name__ == "__main__":
-    # Test the Vertex AI system with your configuration
+from src.prompts.planner_model import Plan # Add this import at the top
+from langchain_core.output_parsers import PydanticToolsParser # Add this import
+from langchain_core.messages import HumanMessage # Add this import
+
+def run_isolated_planner_test():
+    """
+    This is a self-contained test to run at startup.
+    It completely bypasses the agent graph to test the core LLM functionality.
+    """
+    logger.info("="*80)
+    logger.info("--- RUNNING AVERY'S ISOLATED PLANNER DIAGNOSTIC ---")
+    
     try:
-        logger.info("Testing DeerFlow Vertex AI system...")
+        # Step 1: Get the exact LLM type for the planner
+        planner_llm_type = AGENT_LLM_MAP.get("planner", "basic")
+        logger.info(f"TEST: Getting base LLM for type: '{planner_llm_type}'")
+        base_llm = get_llm_by_type(planner_llm_type)
         
-        # Verify environment variables
-        env_verification = verify_environment_variables()
-        print("🔍 Environment Variable Verification:")
-        for var_name, var_info in env_verification.items():
-            print(f"  {var_name}: {var_info['status']}")
-            if var_info.get('value'):
-                print(f"    Value: {var_info['value']}")
+        # Step 2: Build the manual chain, as per the intelligence document
+        logger.info("TEST: Binding the 'Plan' tool to the LLM.")
+        llm_with_tools = base_llm.bind_tools([Plan], tool_choice="Plan")
         
-        print("\n" + "="*50)
+        logger.info("TEST: Creating PydanticToolsParser for the 'Plan' tool.")
+        parser = PydanticToolsParser(tools=[Plan], first_tool_only=True)
         
-        # Test LLM configuration
-        test_results = test_vertex_ai_configuration()
-        print("🧠 LLM Configuration Test Results:")
-        for llm_type, result in test_results.items():
-            status = result.get('status', 'unknown')
-            print(f"  {llm_type.upper()}: {status.upper()}")
-            if status == "success":
-                print(f"    Model: {result.get('model', 'unknown')}")
-                print(f"    Response: {result.get('response_preview', 'No preview')}")
-            else:
-                print(f"    Error: {result.get('error', 'Unknown error')}")
+        logger.info("TEST: Constructing the chain: llm_with_tools | parser")
+        chain = llm_with_tools | parser
         
-        print("\n" + "="*50)
+        # Step 3: Invoke the chain with a simple, direct prompt
+        test_prompt = "Create a research plan to find out the height of the Eiffel Tower."
+        logger.info(f"TEST: Invoking chain with prompt: '{test_prompt}'")
         
-        # Show cache info
-        cache_info = get_cached_llm_info()
-        print("📦 Cache Information:")
-        for llm_type, info in cache_info.items():
-            print(f"  {llm_type}: {info}")
+        result = chain.invoke([HumanMessage(content=test_prompt)])
         
+        # Step 4: Validate the result
+        logger.info(f"TEST: Chain invocation complete. Result type: {type(result)}")
+        
+        if isinstance(result, Plan):
+            logger.info("✅✅✅ SUCCESS: The isolated chain successfully produced a 'Plan' object.")
+            logger.info(f"Resulting Plan Title: {result.title}")
+            return True
+        else:
+            logger.error(f"❌❌❌ FAILURE: The isolated chain DID NOT produce a 'Plan' object.")
+            logger.error(f"Result was: {result}")
+            return False
+
     except Exception as e:
-        print(f"❌ Vertex AI system test failed: {e}")
-        logger.error(f"Vertex AI system test failed: {e}")
+        logger.error(f"❌❌❌ CATASTROPHIC FAILURE: The isolated test threw an exception.")
+        logger.error(f"Exception details: {e}", exc_info=True) # exc_info=True gives a full stack trace
+        return False
+    finally:
+        logger.info("--- ISOLATED PLANNER DIAGNOSTIC COMPLETE ---")
+        logger.info("="*80)
+
+
+# Run the diagnostic test as soon as the module is loaded
+run_isolated_planner_test()
 
 
 # ============================================================================***
