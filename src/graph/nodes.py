@@ -120,11 +120,11 @@ def background_investigation_node(state: State, config: RunnableConfig):
 
 def planner_node(
     state: State, config: RunnableConfig
-) -> Command[Literal["human_feedback", "reporter", "__end__"]]:
+) -> Command[Literal["human_feedback", "reporter"]]:
     """Planner node that generate the full plan."""
     logger.info("Planner generating full plan")
     configurable = Configuration.from_runnable_config(config)
-    plan_iterations = state["plan_iterations"] if state.get("plan_iterations", 0) else 0
+    plan_iterations = state.get("plan_iterations", 0)
     messages = apply_prompt_template("planner", state, configurable)
 
     if (
@@ -143,49 +143,52 @@ def planner_node(
             }
         ]
     
-    llm = get_structured_output_llm(AGENT_LLM_MAP["planner"], Plan)
-
+    # If the plan iterations is greater than the max plan iterations, return the reporter node
     if plan_iterations >= configurable.max_plan_iterations:
         return Command(goto="reporter")
 
-    # Invoke the LLM to get a structured Plan object
-    # The `invoke` method is appropriate here.
-    response = llm.invoke(messages)
+    # --- AVERY'S FIX: START ---
+    # The get_structured_output_llm function correctly prepares the LLM.
+    # The key is how we invoke it and handle the response.
+    try:
+        llm = get_structured_output_llm(AGENT_LLM_MAP["planner"], Plan)
+        
+        # Invoke the model. The response will be a Pydantic 'Plan' object directly.
+        response_plan_object = llm.invoke(messages)
+        
+        # Check if the model returned a valid object.
+        if not isinstance(response_plan_object, Plan):
+            raise TypeError(f"LLM did not return a valid 'Plan' object. Got: {type(response_plan_object)}")
 
-    # 🎯 CORRECTED INDENTATION: This block must be at the same level as the line below it.
-    if response is None:
-        logger.error(
-            "Planner LLM failed to return a valid structured output (response is None). "
-            "This usually means the model's raw response could not be parsed into the 'Plan' schema. "
-            "Review the planner prompt and the model's output in your observability tool (Langfuse)."
-        )
-        # End the graph gracefully if the LLM fails its contract.
-        return Command(goto="__end__")
+        logger.info(f"Planner response successfully parsed into Plan object.")
+        full_response_json = response_plan_object.model_dump_json(indent=4, exclude_none=True)
+        
+    except Exception as e:
+        # This will now catch the "Planner LLM failed" error at its source.
+        logger.error(f"Planner LLM failed to return a valid structured output: {e}")
+        # If we fail after multiple attempts, go to reporter. Otherwise, end.
+        if plan_iterations > 0:
+            return Command(goto="reporter")
+        else:
+            return Command(goto="__end__")
+    # --- AVERY'S FIX: END ---
 
-    # This line should have the same indentation as the 'if' block above it.
-    full_response = response.model_dump_json(indent=4, exclude_none=True)
 
-
-    logger.debug(f"Current state messages: {state['messages']}")
-    logger.info(f"Planner response: {full_response}")
-
-    # Since the response is already a validated Pydantic object, we can use it directly.
-    curr_plan = response
-    
-    if curr_plan.has_enough_context:
+    if response_plan_object.has_enough_context:
         logger.info("Planner response has enough context.")
         return Command(
             update={
-                "messages": [AIMessage(content=full_response, name="planner")],
-                "current_plan": curr_plan,
+                "messages": [AIMessage(content=full_response_json, name="planner")],
+                "current_plan": response_plan_object, # Pass the object directly
             },
             goto="reporter",
         )
     
+    # If not enough context, handoff to human feedback with the generated plan object.
     return Command(
         update={
-            "messages": [AIMessage(content=full_response, name="planner")],
-            "current_plan": curr_plan.model_dump_json(), # Pass as JSON string
+            "messages": [AIMessage(content=full_response_json, name="planner")],
+            "current_plan": full_response_json, # Pass as JSON string to feedback node
         },
         goto="human_feedback",
     )
