@@ -84,6 +84,7 @@ services:
     expose:
       - "8000"
     labels:
+      labels:
       # Core Traefik Configuration
       - 'traefik.enable=true'
       - 'traefik.docker.network=coolify'
