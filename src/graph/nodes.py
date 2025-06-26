@@ -149,23 +149,23 @@ def planner_node(
         return Command(goto="reporter")
 
     # Invoke the LLM to get a structured Plan object
-   response = llm.invoke(messages)
+    # The `invoke` method is appropriate here.
+    response = llm.invoke(messages)
 
-    # 🎯 FIX: Add a robust check for a None response from the LLM
+    # 🎯 CORRECTED INDENTATION: This block must be at the same level as the line below it.
     if response is None:
-        # This is CRITICAL for debugging. We need to know the LLM is failing the contract.
         logger.error(
             "Planner LLM failed to return a valid structured output (response is None). "
             "This usually means the model's raw response could not be parsed into the 'Plan' schema. "
             "Review the planner prompt and the model's output in your observability tool (Langfuse)."
         )
-        # We must stop execution here. Crashing the stream is not an option.
-        # We can either return a command to end or raise a specific, handled exception.
-        # For now, let's end the graph gracefully.
+        # End the graph gracefully if the LLM fails its contract.
         return Command(goto="__end__")
 
-
+    # This line should have the same indentation as the 'if' block above it.
     full_response = response.model_dump_json(indent=4, exclude_none=True)
+
+
     logger.debug(f"Current state messages: {state['messages']}")
     logger.info(f"Planner response: {full_response}")
 
