@@ -357,53 +357,58 @@ from langchain_core.messages import HumanMessage # Add this import
 
 def run_isolated_planner_test():
     """
-    This is a self-contained test to run at startup.
-    It completely bypasses the agent graph to test the core LLM functionality.
+    A self-contained test to run at startup to diagnose the core LLM functionality.
+    UPDATED: Uses print() to bypass logging race conditions.
     """
-    logger.info("="*80)
-    logger.info("--- RUNNING AVERY'S ISOLATED PLANNER DIAGNOSTIC ---")
+    print("="*80)
+    print("--- RUNNING AVERY'S ISOLATED PLANNER DIAGNOSTIC ---")
     
     try:
         # Step 1: Get the exact LLM type for the planner
         planner_llm_type = AGENT_LLM_MAP.get("planner", "basic")
-        logger.info(f"TEST: Getting base LLM for type: '{planner_llm_type}'")
+        print(f"TEST: Getting base LLM for type: '{planner_llm_type}'")
         base_llm = get_llm_by_type(planner_llm_type)
         
-        # Step 2: Build the manual chain, as per the intelligence document
-        logger.info("TEST: Binding the 'Plan' tool to the LLM.")
+        # Step 2: Build the manual chain
+        print("TEST: Binding the 'Plan' tool to the LLM.")
         llm_with_tools = base_llm.bind_tools([Plan], tool_choice="Plan")
         
-        logger.info("TEST: Creating PydanticToolsParser for the 'Plan' tool.")
+        print("TEST: Creating PydanticToolsParser for the 'Plan' tool.")
         parser = PydanticToolsParser(tools=[Plan], first_tool_only=True)
         
-        logger.info("TEST: Constructing the chain: llm_with_tools | parser")
+        print("TEST: Constructing the chain: llm_with_tools | parser")
         chain = llm_with_tools | parser
         
-        # Step 3: Invoke the chain with a simple, direct prompt
+        # Step 3: Invoke the chain
         test_prompt = "Create a research plan to find out the height of the Eiffel Tower."
-        logger.info(f"TEST: Invoking chain with prompt: '{test_prompt}'")
+        print(f"TEST: Invoking chain with prompt: '{test_prompt}'")
         
         result = chain.invoke([HumanMessage(content=test_prompt)])
         
         # Step 4: Validate the result
-        logger.info(f"TEST: Chain invocation complete. Result type: {type(result)}")
+        print(f"TEST: Chain invocation complete. Result type: {type(result)}")
         
         if isinstance(result, Plan):
-            logger.info("✅✅✅ SUCCESS: The isolated chain successfully produced a 'Plan' object.")
-            logger.info(f"Resulting Plan Title: {result.title}")
+            print("✅✅✅ SUCCESS: The isolated chain successfully produced a 'Plan' object.")
+            print(f"Resulting Plan Title: {getattr(result, 'title', 'N/A')}")
             return True
         else:
-            logger.error(f"❌❌❌ FAILURE: The isolated chain DID NOT produce a 'Plan' object.")
-            logger.error(f"Result was: {result}")
+            print(f"❌❌❌ FAILURE: The isolated chain DID NOT produce a 'Plan' object.")
+            print(f"Result was: {result}")
             return False
 
     except Exception as e:
-        logger.error(f"❌❌❌ CATASTROPHIC FAILURE: The isolated test threw an exception.")
-        logger.error(f"Exception details: {e}", exc_info=True) # exc_info=True gives a full stack trace
+        import traceback
+        print(f"❌❌❌ CATASTROPHIC FAILURE: The isolated test threw an exception.")
+        print(f"Exception Type: {type(e).__name__}")
+        print(f"Exception Details: {e}")
+        print("--- STACK TRACE ---")
+        traceback.print_exc()
+        print("-------------------")
         return False
     finally:
-        logger.info("--- ISOLATED PLANNER DIAGNOSTIC COMPLETE ---")
-        logger.info("="*80)
+        print("--- ISOLATED PLANNER DIAGNOSTIC COMPLETE ---")
+        print("="*80)
 
 
 # Run the diagnostic test as soon as the module is loaded
