@@ -13,6 +13,12 @@ from src.config import load_yaml_config
 from src.config.agents import LLMType
 from src.config.agents import AGENT_LLM_MAP
 
+# --- Avery's Diagnostic Imports: START ---
+from src.prompts.planner_model import Plan
+from langchain_core.output_parsers import PydanticToolsParser
+from langchain_core.messages import HumanMessage
+# --- Avery's Diagnostic Imports: END ---
+
 # Import Vertex AI compatible custom provider system
 try:
     from src.llms.custom_provider import create_custom_provider, CustomLLMWrapper, ProviderError
