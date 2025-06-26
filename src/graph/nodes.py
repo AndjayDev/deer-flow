@@ -142,21 +142,22 @@ def planner_node(
                 ),
             }
         ]
-    
-    # If the plan iterations is greater than the max plan iterations, return the reporter node
+
     if plan_iterations >= configurable.max_plan_iterations:
         return Command(goto="reporter")
 
-    # --- AVERY'S FIX: START ---
-    # The get_structured_output_llm function correctly prepares the LLM.
-    # The key is how we invoke it and handle the response.
+    # --- AVERY'S FINAL FIX: START ---
     try:
-        llm = get_structured_output_llm(AGENT_LLM_MAP["planner"], Plan)
+        # Step 1: Get the base LLM for the planner. We don't need get_structured_output_llm here anymore.
+        base_llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
+
+        # Step 2: Use .with_structured_output() directly. This is the key.
+        # This method correctly handles whether to use tool_calling or json_mode based on the LLM provider.
+        structured_llm = base_llm.with_structured_output(Plan)
         
-        # Invoke the model. The response will be a Pydantic 'Plan' object directly.
-        response_plan_object = llm.invoke(messages)
+        # Step 3: Invoke the new, correctly configured LLM.
+        response_plan_object = structured_llm.invoke(messages)
         
-        # Check if the model returned a valid object.
         if not isinstance(response_plan_object, Plan):
             raise TypeError(f"LLM did not return a valid 'Plan' object. Got: {type(response_plan_object)}")
 
@@ -164,31 +165,27 @@ def planner_node(
         full_response_json = response_plan_object.model_dump_json(indent=4, exclude_none=True)
         
     except Exception as e:
-        # This will now catch the "Planner LLM failed" error at its source.
         logger.error(f"Planner LLM failed to return a valid structured output: {e}")
-        # If we fail after multiple attempts, go to reporter. Otherwise, end.
         if plan_iterations > 0:
             return Command(goto="reporter")
         else:
             return Command(goto="__end__")
-    # --- AVERY'S FIX: END ---
-
+    # --- AVERY'S FINAL FIX: END ---
 
     if response_plan_object.has_enough_context:
         logger.info("Planner response has enough context.")
         return Command(
             update={
                 "messages": [AIMessage(content=full_response_json, name="planner")],
-                "current_plan": response_plan_object, # Pass the object directly
+                "current_plan": response_plan_object,
             },
             goto="reporter",
         )
     
-    # If not enough context, handoff to human feedback with the generated plan object.
     return Command(
         update={
             "messages": [AIMessage(content=full_response_json, name="planner")],
-            "current_plan": full_response_json, # Pass as JSON string to feedback node
+            "current_plan": full_response_json,
         },
         goto="human_feedback",
     )
