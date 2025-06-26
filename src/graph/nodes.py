@@ -120,7 +120,7 @@ def background_investigation_node(state: State, config: RunnableConfig):
 
 def planner_node(
     state: State, config: RunnableConfig
-) -> Command[Literal["human_feedback", "reporter"]]:
+) -> Command[Literal["human_feedback", "reporter", "__end__"]]:
     """Planner node that generate the full plan."""
     logger.info("Planner generating full plan")
     configurable = Configuration.from_runnable_config(config)
@@ -143,34 +143,37 @@ def planner_node(
             }
         ]
     
-    # ← FIX: Replaced the faulty if/else block with a single, correct call.
-    # The get_structured_output_llm function already handles the logic for different LLM providers (json_mode vs native).
-    # The planner ALWAYS needs a structured output model to generate the Plan object.
     llm = get_structured_output_llm(AGENT_LLM_MAP["planner"], Plan)
 
-    # if the plan iterations is greater than the max plan iterations, return the reporter node
     if plan_iterations >= configurable.max_plan_iterations:
         return Command(goto="reporter")
 
-    # ← FIX: Simplified response handling. The structured output LLM returns an object, not a stream.
-    # The `invoke` method is appropriate here. The `else` block for streaming was part of the logical error.
+    # Invoke the LLM to get a structured Plan object
     response = llm.invoke(messages)
+
+    # --- FIX STARTS HERE ---
+    # CRITICAL: Check if the LLM failed to return a valid plan.
+    if response is None:
+        logger.error("Planner LLM failed to return a valid structured output (response is None).")
+        logger.error(f"This usually means the model's response could not be parsed into the 'Plan' schema.")
+        logger.error(f"Review the planner prompt and the model's output in your observability tool (Langfuse).")
+        # Gracefully end the execution instead of crashing.
+        return Command(
+            update={
+                "messages": [AIMessage(content="[ERROR] I was unable to create a research plan for your request. Please try rephrasing your query.", name="planner")],
+            },
+            goto="__end__" 
+        )
+    # --- FIX ENDS HERE ---
+
     full_response = response.model_dump_json(indent=4, exclude_none=True)
 
     logger.debug(f"Current state messages: {state['messages']}")
     logger.info(f"Planner response: {full_response}")
 
-    try:
-        # The response from a structured_output call is already a Pydantic object,
-        # so we can directly use it instead of parsing JSON again.
-        curr_plan = response 
-    except Exception as e: # Catching broader exceptions in case of model validation errors
-        logger.warning(f"Planner response could not be validated into a Plan object: {e}")
-        if plan_iterations > 0:
-            return Command(goto="reporter")
-        else:
-            return Command(goto="__end__")
-
+    # Since the response is already a validated Pydantic object, we can use it directly.
+    curr_plan = response
+    
     if curr_plan.has_enough_context:
         logger.info("Planner response has enough context.")
         return Command(
@@ -181,11 +184,10 @@ def planner_node(
             goto="reporter",
         )
     
-    # If not enough context, handoff to human feedback with the generated plan object.
     return Command(
         update={
             "messages": [AIMessage(content=full_response, name="planner")],
-            "current_plan": curr_plan.model_dump_json(), # Pass as JSON string to feedback node
+            "current_plan": curr_plan.model_dump_json(), # Pass as JSON string
         },
         goto="human_feedback",
     )
