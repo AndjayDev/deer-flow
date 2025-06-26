@@ -142,49 +142,50 @@ def planner_node(
                 ),
             }
         ]
-
-    if AGENT_LLM_MAP["planner"] == "basic":
-    llm = get_structured_output_llm(AGENT_LLM_MAP["planner"], Plan) # <--- THIS LINE LACKS INDENTATION
-    else:
-        llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
+    
+    # ← FIX: Replaced the faulty if/else block with a single, correct call.
+    # The get_structured_output_llm function already handles the logic for different LLM providers (json_mode vs native).
+    # The planner ALWAYS needs a structured output model to generate the Plan object.
+    llm = get_structured_output_llm(AGENT_LLM_MAP["planner"], Plan)
 
     # if the plan iterations is greater than the max plan iterations, return the reporter node
     if plan_iterations >= configurable.max_plan_iterations:
         return Command(goto="reporter")
 
-    full_response = ""
-    if AGENT_LLM_MAP["planner"] == "basic":
-        response = llm.invoke(messages)
-        full_response = response.model_dump_json(indent=4, exclude_none=True)
-    else:
-        response = llm.stream(messages)
-        for chunk in response:
-            full_response += chunk.content
+    # ← FIX: Simplified response handling. The structured output LLM returns an object, not a stream.
+    # The `invoke` method is appropriate here. The `else` block for streaming was part of the logical error.
+    response = llm.invoke(messages)
+    full_response = response.model_dump_json(indent=4, exclude_none=True)
+
     logger.debug(f"Current state messages: {state['messages']}")
     logger.info(f"Planner response: {full_response}")
 
     try:
-        curr_plan = json.loads(repair_json_output(full_response))
-    except json.JSONDecodeError:
-        logger.warning("Planner response is not a valid JSON")
+        # The response from a structured_output call is already a Pydantic object,
+        # so we can directly use it instead of parsing JSON again.
+        curr_plan = response 
+    except Exception as e: # Catching broader exceptions in case of model validation errors
+        logger.warning(f"Planner response could not be validated into a Plan object: {e}")
         if plan_iterations > 0:
             return Command(goto="reporter")
         else:
             return Command(goto="__end__")
-    if curr_plan.get("has_enough_context"):
+
+    if curr_plan.has_enough_context:
         logger.info("Planner response has enough context.")
-        new_plan = Plan.model_validate(curr_plan)
         return Command(
             update={
                 "messages": [AIMessage(content=full_response, name="planner")],
-                "current_plan": new_plan,
+                "current_plan": curr_plan,
             },
             goto="reporter",
         )
+    
+    # If not enough context, handoff to human feedback with the generated plan object.
     return Command(
         update={
             "messages": [AIMessage(content=full_response, name="planner")],
-            "current_plan": full_response,
+            "current_plan": curr_plan.model_dump_json(), # Pass as JSON string to feedback node
         },
         goto="human_feedback",
     )
