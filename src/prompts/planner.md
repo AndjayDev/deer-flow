@@ -151,9 +151,77 @@ When planning information gathering, consider these key aspects and ensure COMPR
 - Use the same language as the user to generate the plan.
 - Do not include steps for summarizing or consolidating the gathered information.
 
-# Output Instructions
+# Output Format Instructions
 
-You must respond by calling the `Plan` tool. Your entire response will be structured according to this tool's schema. Do not add any conversational text or markdown formatting like "```json" around your output. Fulfill the user's request by providing the necessary arguments to the `Plan` tool based on your analysis.
+You MUST respond with a single, valid JSON object that strictly adheres to the `Plan` JSON schema provided below. Do NOT include any other text, explanations, or markdown formatting like "```json" outside of the main JSON object. Your entire response must be parsable as JSON.
+
+Here is the JSON schema for the `Plan` object:
+
+```json
+{
+  "title": "Plan",
+  "description": "Schema for the research plan.",
+  "type": "object",
+  "properties": {
+    "locale": {
+      "title": "Locale",
+      "description": "e.g. 'en-US' or 'zh-CN', based on the user's language",
+      "type": "string"
+    },
+    "has_enough_context": {
+      "title": "Has Enough Context",
+      "type": "boolean"
+    },
+    "thought": {
+      "title": "Thought",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "steps": {
+      "title": "Steps",
+      "description": "Research & Processing steps to get more context",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Step"
+      }
+    }
+  },
+  "required": ["locale", "has_enough_context", "thought", "title"],
+  "definitions": {
+    "Step": {
+      "title": "Step",
+      "type": "object",
+      "properties": {
+        "need_search": {
+          "title": "Need Search",
+          "description": "Must be explicitly set for each step",
+          "type": "boolean"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "description": "Specify exactly what data to collect",
+          "type": "string"
+        },
+        "step_type": {
+          "description": "Indicates the nature of the step",
+          "enum": [
+            "research",
+            "processing"
+          ],
+          "type": "string"
+        }
+      },
+      "required": ["need_search", "title", "description", "step_type"]
+    }
+  }
+}
 ```
 
 # Notes
