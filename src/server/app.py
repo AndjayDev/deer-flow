@@ -114,6 +114,16 @@ graph = build_graph_with_memory()
 # DEERFLOW DIAGNOSTIC ENDPOINTS
 # ============================================================================
 
+@app.get("/api/test/enhanced")
+async def test_enhanced_app():
+    """Simple test to verify enhanced app.py is deployed."""
+    return {
+        "status": "success",
+        "message": "Enhanced app.py is working!",
+        "version": "enhanced_with_diagnostics",
+        "timestamp": "2025-01-24"
+    }
+
 @app.get("/api/diagnostics/status")
 async def diagnostics_status():
     """Simple status check for diagnostics system."""
