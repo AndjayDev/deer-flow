@@ -154,7 +154,7 @@ def planner_node(
 
         # Step 2: Bind the Plan schema as a tool, forcing the model to use it.
         # This is the most reliable method for Gemini according to the intel.
-        llm_with_tools = base_llm.bind_tools([Plan], tool_choice="Plan")
+        llm_with_tools = base_llm.bind_tools([Plan], tool_choice=Plan)
         
         # Step 3: Explicitly define the parser that knows how to handle tool calls.
         # We only care about the first tool call that matches our 'Plan' schema.
