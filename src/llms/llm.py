@@ -7,17 +7,24 @@ from pathlib import Path
 from typing import Any, Dict, Union
 import os
 import logging
+import sys
+import traceback
+from datetime import datetime
+from langchain_core.messages import HumanMessage
+from langchain_core.output_parsers import PydanticToolsParser
 
 from langchain_openai import ChatOpenAI
 from src.config import load_yaml_config
 from src.config.agents import LLMType
 from src.config.agents import AGENT_LLM_MAP
 
-# --- Avery's Diagnostic Imports: START ---
-from src.prompts.planner_model import Plan
-from langchain_core.output_parsers import PydanticToolsParser
-from langchain_core.messages import HumanMessage
-# --- Avery's Diagnostic Imports: END ---
+# Add these imports for the diagnostics
+try:
+    from src.prompts.planner_model import Plan
+    PLAN_MODEL_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Plan model not available for testing: {e}")
+    PLAN_MODEL_AVAILABLE = False
 
 # Import Vertex AI compatible custom provider system
 try:
@@ -31,7 +38,7 @@ except ImportError as e:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Cache for LLM instances
+# Cache for LLM instances - FIXED THE TYPO
 _llm_cache: dict[LLMType, Union[ChatOpenAI, CustomLLMWrapper]] = {}
 
 
@@ -351,73 +358,270 @@ def get_vision_llm() -> Union[ChatOpenAI, CustomLLMWrapper]:
     return get_llm_by_type("vision")  # gemini-2.5-pro-preview-06-05 with vision
 
 
-from src.prompts.planner_model import Plan # Add this import at the top
-from langchain_core.output_parsers import PydanticToolsParser # Add this import
-from langchain_core.messages import HumanMessage # Add this import
+# ============================================================================
+# ENHANCED DIAGNOSTIC FUNCTIONS FOR DEERFLOW PLANNER_NODE DEBUGGING
+# ============================================================================
 
-def run_isolated_planner_test():
-    """
-    A self-contained test to run at startup to diagnose the core LLM functionality.
-    UPDATED: Uses print() to bypass logging race conditions.
-    """
-    print("="*80)
-    print("--- RUNNING AVERY'S ISOLATED PLANNER DIAGNOSTIC ---")
+# Global flag to prevent multiple diagnostic runs
+_DIAGNOSTICS_RUN = False
+
+def print_diagnostic_header(title: str):
+    """Print a clearly visible diagnostic header."""
+    border = "=" * 80
+    print(f"\n{border}")
+    print(f"🦌 DEERFLOW DIAGNOSTIC: {title}")
+    print(f"📅 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"{border}")
+
+def print_diagnostic_footer():
+    """Print diagnostic footer."""
+    print("=" * 80 + "\n")
+
+def test_basic_llm_connectivity():
+    """Test basic LLM connectivity for all types."""
+    print_diagnostic_header("BASIC LLM CONNECTIVITY TEST")
+    
+    results = {}
+    llm_types = ["basic", "reasoning", "vision"]
+    
+    for llm_type in llm_types:
+        print(f"\n🧠 Testing {llm_type.upper()} LLM...")
+        try:
+            llm = get_llm_by_type(llm_type)
+            print(f"   ✅ LLM created: {type(llm).__name__}")
+            
+            # Test simple invocation
+            test_message = "Say 'OK' to confirm connectivity."
+            response = llm.invoke(test_message)
+            response_content = response.content if hasattr(response, 'content') else str(response)
+            
+            print(f"   ✅ Response received: {response_content[:50]}...")
+            results[llm_type] = "SUCCESS"
+            
+        except Exception as e:
+            print(f"   ❌ ERROR: {str(e)[:100]}...")
+            results[llm_type] = f"FAILED: {e}"
+    
+    print(f"\n📊 CONNECTIVITY SUMMARY:")
+    for llm_type, result in results.items():
+        status = "✅" if result == "SUCCESS" else "❌"
+        print(f"   {status} {llm_type.upper()}: {result}")
+    
+    print_diagnostic_footer()
+    return results
+
+def test_structured_output_compatibility():
+    """Test structured output for the exact planner_node scenario."""
+    print_diagnostic_header("STRUCTURED OUTPUT COMPATIBILITY TEST")
+    
+    if not PLAN_MODEL_AVAILABLE:
+        print("❌ Cannot run structured output test - Plan model not available")
+        print_diagnostic_footer()
+        return None
+    
+    results = {}
+    
+    # Test the exact planner scenario
+    try:
+        print("🎯 Testing PLANNER agent structured output (the failing scenario)...")
+        
+        # Get the exact LLM type used by planner
+        planner_llm_type = AGENT_LLM_MAP.get("planner", "basic")
+        print(f"   📍 Planner uses LLM type: {planner_llm_type}")
+        
+        base_llm = get_llm_by_type(planner_llm_type)
+        print(f"   ✅ Base LLM created: {type(base_llm).__name__}")
+        
+        # Test Method 1: Direct .with_structured_output() (current failing method)
+        print("\n   🔬 Method 1: Direct .with_structured_output()")
+        try:
+            structured_llm = base_llm.with_structured_output(Plan)
+            test_prompt = "Create a research plan to find the height of the Eiffel Tower."
+            result = structured_llm.invoke(test_prompt)
+            
+            if isinstance(result, Plan):
+                print(f"   ✅ SUCCESS: Returned Plan object with title: {result.title}")
+                results["direct_structured"] = "SUCCESS"
+            else:
+                print(f"   ❌ FAILED: Returned {type(result)} instead of Plan")
+                print(f"   📝 Result content: {str(result)[:200]}...")
+                results["direct_structured"] = f"WRONG_TYPE: {type(result)}"
+                
+        except Exception as e:
+            print(f"   ❌ EXCEPTION: {str(e)[:150]}...")
+            results["direct_structured"] = f"EXCEPTION: {e}"
+        
+        # Test Method 2: Manual bind_tools + parser (Avery's suggested fix)
+        print("\n   🔬 Method 2: Manual bind_tools + PydanticToolsParser")
+        try:
+            llm_with_tools = base_llm.bind_tools([Plan], tool_choice="Plan")
+            parser = PydanticToolsParser(tools=[Plan], first_tool_only=True)
+            chain = llm_with_tools | parser
+            
+            test_prompt = [HumanMessage(content="Create a research plan to find the height of the Eiffel Tower.")]
+            result = chain.invoke(test_prompt)
+            
+            if isinstance(result, Plan):
+                print(f"   ✅ SUCCESS: Returned Plan object with title: {result.title}")
+                results["manual_tools"] = "SUCCESS"
+            else:
+                print(f"   ❌ FAILED: Returned {type(result)} instead of Plan")
+                print(f"   📝 Result content: {str(result)[:200]}...")
+                results["manual_tools"] = f"WRONG_TYPE: {type(result)}"
+                
+        except Exception as e:
+            print(f"   ❌ EXCEPTION: {str(e)[:150]}...")
+            results["manual_tools"] = f"EXCEPTION: {e}"
+        
+        # Test Method 3: Provider capability detection
+        print("\n   🔬 Method 3: Provider Capability Detection")
+        try:
+            capabilities = _detect_provider_capabilities(base_llm)
+            print(f"   📊 Provider: {capabilities['provider']}")
+            print(f"   📊 Supports JSON mode: {capabilities['supports_json_mode']}")
+            print(f"   📊 Supports function calling: {capabilities['supports_function_calling']}")
+            
+            if capabilities['supports_json_mode']:
+                structured_llm = base_llm.with_structured_output(Plan, method="json_mode")
+            else:
+                structured_llm = base_llm.with_structured_output(Plan)
+            
+            result = structured_llm.invoke("Create a research plan to find the height of the Eiffel Tower.")
+            
+            if isinstance(result, Plan):
+                print(f"   ✅ SUCCESS: Returned Plan object with title: {result.title}")
+                results["capability_detection"] = "SUCCESS"
+            else:
+                print(f"   ❌ FAILED: Returned {type(result)} instead of Plan")
+                results["capability_detection"] = f"WRONG_TYPE: {type(result)}"
+                
+        except Exception as e:
+            print(f"   ❌ EXCEPTION: {str(e)[:150]}...")
+            results["capability_detection"] = f"EXCEPTION: {e}"
+    
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR in structured output test: {e}")
+        results["critical_error"] = str(e)
+    
+    print(f"\n📊 STRUCTURED OUTPUT SUMMARY:")
+    for method, result in results.items():
+        status = "✅" if result == "SUCCESS" else "❌"
+        print(f"   {status} {method}: {result}")
+    
+    print_diagnostic_footer()
+    return results
+
+def test_vertex_ai_specific_configuration():
+    """Test Vertex AI specific configuration and authentication."""
+    print_diagnostic_header("VERTEX AI CONFIGURATION TEST")
+    
+    # Test environment variables
+    print("🔑 Environment Variables Check:")
+    required_vars = {
+        "GOOGLE_CLOUD_PROJECT": os.getenv("GOOGLE_CLOUD_PROJECT"),
+        "VERTEX_AI_LOCATION": os.getenv("VERTEX_AI_LOCATION"), 
+        "GOOGLE_APPLICATION_CREDENTIALS": os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
+        "GEMINI_BASIC_MODEL": os.getenv("GEMINI_BASIC_MODEL"),
+        "GEMINI_REASONING_MODEL": os.getenv("GEMINI_REASONING_MODEL"),
+    }
+    
+    missing_vars = []
+    for var_name, var_value in required_vars.items():
+        if var_value:
+            if var_name == "GOOGLE_APPLICATION_CREDENTIALS":
+                file_exists = os.path.exists(var_value)
+                status = "✅" if file_exists else "❌ FILE NOT FOUND"
+                print(f"   {status} {var_name}: {var_value}")
+                if not file_exists:
+                    missing_vars.append(f"{var_name} (file not found)")
+            else:
+                print(f"   ✅ {var_name}: {var_value}")
+        else:
+            print(f"   ❌ {var_name}: NOT SET")
+            missing_vars.append(var_name)
+    
+    if missing_vars:
+        print(f"\n⚠️  Missing configuration: {', '.join(missing_vars)}")
+    
+    # Test Vertex AI provider creation
+    print(f"\n🏭 Vertex AI Provider Creation:")
+    try:
+        if CUSTOM_PROVIDERS_AVAILABLE:
+            basic_conf = _get_env_llm_conf("basic")
+            print(f"   📋 Basic LLM config: {basic_conf}")
+            
+            vertex_llm = _create_vertex_ai_llm(basic_conf)
+            print(f"   ✅ Vertex AI LLM created: {type(vertex_llm).__name__}")
+            
+            # Test simple call
+            response = vertex_llm.invoke("Say 'Vertex AI working' to confirm.")
+            print(f"   ✅ Vertex AI response: {response.content[:50]}...")
+            
+        else:
+            print("   ❌ Custom providers not available")
+            
+    except Exception as e:
+        print(f"   ❌ Vertex AI creation failed: {e}")
+        print(f"   📝 Full error: {traceback.format_exc()}")
+    
+    print_diagnostic_footer()
+
+def run_comprehensive_diagnostics():
+    """Run all diagnostic tests in sequence."""
+    global _DIAGNOSTICS_RUN
+    
+    if _DIAGNOSTICS_RUN:
+        print("🔄 Diagnostics already run, skipping...")
+        return
+    
+    print("\n" + "🦌" * 25 + " DEERFLOW COMPREHENSIVE DIAGNOSTICS " + "🦌" * 25)
+    print(f"🚀 Starting comprehensive diagnostic suite...")
+    print(f"📍 Python version: {sys.version}")
+    print(f"📍 Working directory: {os.getcwd()}")
     
     try:
-        # Step 1: Get the exact LLM type for the planner
-        planner_llm_type = AGENT_LLM_MAP.get("planner", "basic")
-        print(f"TEST: Getting base LLM for type: '{planner_llm_type}'")
-        base_llm = get_llm_by_type(planner_llm_type)
+        # Test 1: Basic connectivity
+        connectivity_results = test_basic_llm_connectivity()
         
-        # Step 2: Build the manual chain
-        print("TEST: Binding the 'Plan' tool to the LLM.")
-        llm_with_tools = base_llm.bind_tools([Plan], tool_choice="Plan")
+        # Test 2: Structured output (the main issue)
+        structured_results = test_structured_output_compatibility()
         
-        print("TEST: Creating PydanticToolsParser for the 'Plan' tool.")
-        parser = PydanticToolsParser(tools=[Plan], first_tool_only=True)
+        # Test 3: Vertex AI specific
+        test_vertex_ai_specific_configuration()
         
-        print("TEST: Constructing the chain: llm_with_tools | parser")
-        chain = llm_with_tools | parser
+        # Summary
+        print_diagnostic_header("FINAL DIAGNOSTIC SUMMARY")
         
-        # Step 3: Invoke the chain
-        test_prompt = "Create a research plan to find out the height of the Eiffel Tower."
-        print(f"TEST: Invoking chain with prompt: '{test_prompt}'")
+        if connectivity_results:
+            working_llms = [k for k, v in connectivity_results.items() if v == "SUCCESS"]
+            print(f"🧠 Working LLM types: {working_llms}")
         
-        result = chain.invoke([HumanMessage(content=test_prompt)])
+        if structured_results:
+            working_methods = [k for k, v in structured_results.items() if v == "SUCCESS"]
+            if working_methods:
+                print(f"✅ Working structured output methods: {working_methods}")
+                print(f"🎯 RECOMMENDATION: Use {working_methods[0]} for planner_node")
+            else:
+                print("❌ NO working structured output methods found!")
+                print("🔧 URGENT: Planner will continue to fail until this is fixed")
         
-        # Step 4: Validate the result
-        print(f"TEST: Chain invocation complete. Result type: {type(result)}")
+        print_diagnostic_footer()
         
-        if isinstance(result, Plan):
-            print("✅✅✅ SUCCESS: The isolated chain successfully produced a 'Plan' object.")
-            print(f"Resulting Plan Title: {getattr(result, 'title', 'N/A')}")
-            return True
-        else:
-            print(f"❌❌❌ FAILURE: The isolated chain DID NOT produce a 'Plan' object.")
-            print(f"Result was: {result}")
-            return False
-
     except Exception as e:
-        import traceback
-        print(f"❌❌❌ CATASTROPHIC FAILURE: The isolated test threw an exception.")
-        print(f"Exception Type: {type(e).__name__}")
-        print(f"Exception Details: {e}")
-        print("--- STACK TRACE ---")
+        print(f"❌ DIAGNOSTIC SUITE CRASHED: {e}")
         traceback.print_exc()
-        print("-------------------")
-        return False
-    finally:
-        print("--- ISOLATED PLANNER DIAGNOSTIC COMPLETE ---")
-        print("="*80)
+    
+    _DIAGNOSTICS_RUN = True
 
+def force_run_diagnostics():
+    """Force run diagnostics even if already run (for manual testing)."""
+    global _DIAGNOSTICS_RUN
+    _DIAGNOSTICS_RUN = False
+    run_comprehensive_diagnostics()
 
-# Run the diagnostic test as soon as the module is loaded
-run_isolated_planner_test()
-
-
-# ============================================================================***
-# *********** MULTI-LLM STRUCTURED OUTPUT COMPATIBILITY LAYER ************
-# ============================================================================***
+# ============================================================================
+# MULTI-LLM STRUCTURED OUTPUT COMPATIBILITY LAYER  
+# ============================================================================
 
 def get_structured_output_llm(agent_type: str, schema_class, fallback_method: str = None):
     """
@@ -435,9 +639,7 @@ def get_structured_output_llm(agent_type: str, schema_class, fallback_method: st
         LLM instance configured with appropriate structured output method
     """
     # Get the base LLM instance using existing system
-    llm_type = AGENT_LLM_MAP.get(agent_type, agent_type)  # ← ADD THIS LINE
-    base_llm = get_llm_by_type(llm_type)
-    # base_llm = get_llm_by_type(agent_type)
+    base_llm = get_llm_by_type(agent_type)
     
     # Detect provider capabilities
     capabilities = _detect_provider_capabilities(base_llm)
@@ -568,3 +770,47 @@ def get_provider_info(agent_type: str) -> dict:
             "agent_type": agent_type,
             "error": str(e)
         }
+
+# Automatic diagnostic trigger
+def trigger_startup_diagnostics():
+    """Trigger diagnostics on module import if environment variable is set."""
+    if os.getenv("DEERFLOW_RUN_DIAGNOSTICS", "false").lower() in ["true", "1", "yes"]:
+        print("🔧 DEERFLOW_RUN_DIAGNOSTICS=true detected, running diagnostics...")
+        run_comprehensive_diagnostics()
+    elif os.getenv("DEERFLOW_AUTO_DIAGNOSE", "false").lower() in ["true", "1", "yes"]:
+        print("🔧 DEERFLOW_AUTO_DIAGNOSE=true detected, running diagnostics...")
+        run_comprehensive_diagnostics()
+
+# Trigger diagnostics automatically when module is imported during startup
+trigger_startup_diagnostics()
+
+if __name__ == "__main__":
+    # Test the Vertex AI system with your configuration
+    try:
+        logger.info("Testing DeerFlow Vertex AI system...")
+        
+        # Verify environment variables
+        env_verification = verify_environment_variables()
+        print("🔍 Environment Variable Verification:")
+        for var_name, var_info in env_verification.items():
+            print(f"  {var_name}: {var_info['status']}")
+            if var_info.get('value'):
+                print(f"    Value: {var_info['value']}")
+        
+        print("\n" + "="*50)
+        
+        # Run enhanced diagnostics
+        print("🦌 Running enhanced DeerFlow diagnostics...")
+        force_run_diagnostics()
+        
+        print("\n" + "="*50)
+        
+        # Show cache info
+        cache_info = get_cached_llm_info()
+        print("📦 Cache Information:")
+        for llm_type, info in cache_info.items():
+            print(f"  {llm_type}: {info}")
+        
+    except Exception as e:
+        print(f"❌ Vertex AI system test failed: {e}")
+        logger.error(f"Vertex AI system test failed: {e}")
