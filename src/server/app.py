@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Annotated, List, cast
 from uuid import uuid4
 
@@ -45,10 +46,57 @@ logger = logging.getLogger(__name__)
 
 INTERNAL_SERVER_ERROR_DETAIL = "Internal Server Error"
 
+# ============================================================================
+# ENHANCED FASTAPI LIFESPAN WITH DEERFLOW DIAGNOSTICS
+# ============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan context manager - runs on startup and shutdown with DeerFlow diagnostics."""
+    
+    # === STARTUP EVENTS ===
+    logger.info("🦌 DeerFlow FastAPI application starting up...")
+    
+    # Force LLM system initialization and diagnostics
+    if os.getenv("DEERFLOW_RUN_DIAGNOSTICS", "false").lower() in ["true", "1", "yes"]:
+        logger.info("🔬 DEERFLOW_RUN_DIAGNOSTICS=true detected, running startup diagnostics...")
+        try:
+            # Import and trigger diagnostics
+            from src.llms.llm import force_run_diagnostics, get_llm_by_type
+            
+            # Force import and cache creation by getting a basic LLM
+            logger.info("🧠 Initializing LLM system during startup...")
+            basic_llm = get_llm_by_type("basic")
+            logger.info(f"✅ LLM system initialized: {type(basic_llm).__name__}")
+            
+            # Run comprehensive diagnostics
+            logger.info("🔬 Running comprehensive startup diagnostics...")
+            force_run_diagnostics()
+            logger.info("✅ Startup diagnostics completed!")
+            
+        except Exception as e:
+            logger.error(f"❌ Startup diagnostic failed: {e}")
+            import traceback
+            logger.error(f"Full startup diagnostic traceback: {traceback.format_exc()}")
+    else:
+        logger.info("🔇 Startup diagnostics disabled (set DEERFLOW_RUN_DIAGNOSTICS=true to enable)")
+    
+    logger.info("🚀 DeerFlow application startup complete!")
+    
+    yield  # Application runs here
+    
+    # === SHUTDOWN EVENTS ===
+    logger.info("🛑 DeerFlow application shutting down...")
+
+# ============================================================================
+# FASTAPI APP CREATION WITH LIFESPAN
+# ============================================================================
+
 app = FastAPI(
     title="DeerFlow API",
-    description="API for Deer",
-    version="0.1.0",
+    description="Deep Research and Automation Framework with Enhanced Diagnostics",
+    version="1.0.0",
+    lifespan=lifespan  # This enables the startup/shutdown diagnostics
 )
 
 # Add CORS middleware
@@ -62,6 +110,229 @@ app.add_middleware(
 
 graph = build_graph_with_memory()
 
+# ============================================================================
+# DEERFLOW DIAGNOSTIC ENDPOINTS
+# ============================================================================
+
+@app.get("/api/diagnostics/status")
+async def diagnostics_status():
+    """Simple status check for diagnostics system."""
+    try:
+        # Try to import the diagnostic module
+        from src.llms import llm
+        
+        return {
+            "status": "available",
+            "message": "DeerFlow diagnostic system is available",
+            "endpoints": [
+                "/api/diagnostics/status - This status endpoint",
+                "/api/diagnostics/run - Run comprehensive diagnostics", 
+                "/api/diagnostics/llm-info - Get LLM configuration info",
+                "/api/diagnostics/test-planner - Test planner structured output specifically"
+            ],
+            "environment": {
+                "DEERFLOW_RUN_DIAGNOSTICS": os.getenv("DEERFLOW_RUN_DIAGNOSTICS", "false"),
+                "DEERFLOW_AUTO_DIAGNOSE": os.getenv("DEERFLOW_AUTO_DIAGNOSE", "false")
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Diagnostic system not available: {e}"
+        }
+
+@app.get("/api/diagnostics/run")
+async def manual_diagnostics():
+    """Manual endpoint to trigger comprehensive LLM diagnostics."""
+    try:
+        logger.info("🔬 Manual diagnostics triggered via API")
+        
+        # Import the diagnostic functions
+        from src.llms.llm import force_run_diagnostics, get_llm_by_type, get_cached_llm_info
+        
+        # Force LLM initialization first
+        logger.info("🧠 Initializing LLM system...")
+        try:
+            basic_llm = get_llm_by_type("basic")
+            logger.info(f"✅ Basic LLM initialized: {type(basic_llm).__name__}")
+        except Exception as llm_error:
+            logger.error(f"❌ LLM initialization failed: {llm_error}")
+            raise HTTPException(status_code=500, detail=f"LLM initialization failed: {llm_error}")
+        
+        # Run comprehensive diagnostics
+        logger.info("🔬 Running comprehensive diagnostics...")
+        force_run_diagnostics()
+        
+        # Get summary info
+        cache_info = get_cached_llm_info()
+        
+        return {
+            "status": "success", 
+            "message": "Diagnostics completed successfully - check application logs for detailed output",
+            "cache_info": cache_info,
+            "note": "Detailed diagnostic output is available in the application logs"
+        }
+        
+    except Exception as e:
+        error_msg = f"Manual diagnostics failed: {str(e)}"
+        logger.error(error_msg)
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_msg)
+
+@app.get("/api/diagnostics/llm-info")
+async def get_llm_info():
+    """Get current LLM configuration and provider information."""
+    try:
+        from src.llms.llm import get_cached_llm_info, get_provider_info, verify_environment_variables
+        
+        # Get cache info
+        cache_info = get_cached_llm_info()
+        
+        # Get provider info for each agent type
+        provider_info = {}
+        for agent_type in ["basic", "reasoning", "vision"]:
+            try:
+                provider_info[agent_type] = get_provider_info(agent_type)
+            except Exception as e:
+                provider_info[agent_type] = {"error": str(e)}
+        
+        # Get environment variable status
+        env_status = verify_environment_variables()
+        
+        return {
+            "status": "success",
+            "cache_info": cache_info,
+            "provider_info": provider_info,
+            "environment_variables": env_status,
+            "diagnostics_enabled": os.getenv("DEERFLOW_RUN_DIAGNOSTICS", "false"),
+            "auto_diagnostics_enabled": os.getenv("DEERFLOW_AUTO_DIAGNOSE", "false")
+        }
+        
+    except Exception as e:
+        error_msg = f"Failed to get LLM info: {str(e)}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+@app.get("/api/diagnostics/test-planner")
+async def test_planner_specifically():
+    """Test the specific planner_node structured output issue that's causing NoneType errors."""
+    try:
+        from src.llms.llm import get_llm_by_type
+        from src.config.agents import AGENT_LLM_MAP
+        
+        # Check if Plan model is available
+        try:
+            from src.prompts.planner_model import Plan
+            plan_available = True
+        except ImportError as e:
+            plan_available = False
+            return {
+                "status": "error",
+                "message": f"Plan model not available: {e}",
+                "recommendation": "Fix Plan model import before testing structured output"
+            }
+        
+        if not plan_available:
+            raise HTTPException(status_code=500, detail="Plan model not available for testing")
+        
+        # Get planner LLM
+        planner_llm_type = AGENT_LLM_MAP.get("planner", "basic")
+        logger.info(f"🎯 Testing planner LLM type: {planner_llm_type}")
+        
+        base_llm = get_llm_by_type(planner_llm_type)
+        
+        test_results = {}
+        
+        # Test Method 1: Direct .with_structured_output() (current failing method)
+        logger.info("🔬 Testing Method 1: Direct .with_structured_output()")
+        try:
+            structured_llm = base_llm.with_structured_output(Plan)
+            result = structured_llm.invoke("Create a research plan to find the height of the Eiffel Tower.")
+            
+            if isinstance(result, Plan):
+                test_results["direct_structured"] = {
+                    "status": "SUCCESS",
+                    "result_type": str(type(result)),
+                    "title": getattr(result, 'title', 'No title')
+                }
+            else:
+                test_results["direct_structured"] = {
+                    "status": "FAILED", 
+                    "result_type": str(type(result)),
+                    "issue": "Returned wrong type instead of Plan object (this is your current issue)"
+                }
+                
+        except Exception as e:
+            test_results["direct_structured"] = {
+                "status": "EXCEPTION",
+                "error": str(e)
+            }
+        
+        # Test Method 2: Manual bind_tools + parser (Avery's suggested fix)
+        logger.info("🔬 Testing Method 2: Manual bind_tools + PydanticToolsParser")
+        try:
+            from langchain_core.output_parsers import PydanticToolsParser
+            from langchain_core.messages import HumanMessage
+            
+            llm_with_tools = base_llm.bind_tools([Plan], tool_choice="Plan")
+            parser = PydanticToolsParser(tools=[Plan], first_tool_only=True)
+            chain = llm_with_tools | parser
+            
+            result = chain.invoke([HumanMessage(content="Create a research plan to find the height of the Eiffel Tower.")])
+            
+            if isinstance(result, Plan):
+                test_results["manual_tools"] = {
+                    "status": "SUCCESS",
+                    "result_type": str(type(result)),
+                    "title": getattr(result, 'title', 'No title')
+                }
+            else:
+                test_results["manual_tools"] = {
+                    "status": "FAILED",
+                    "result_type": str(type(result)),
+                    "issue": "Returned wrong type instead of Plan object"
+                }
+                
+        except Exception as e:
+            test_results["manual_tools"] = {
+                "status": "EXCEPTION", 
+                "error": str(e)
+            }
+        
+        # Determine recommendation
+        working_methods = [method for method, result in test_results.items() if result.get("status") == "SUCCESS"]
+        
+        if working_methods:
+            recommendation = f"✅ SUCCESS: Use {working_methods[0]} method for planner_node"
+            overall_status = "success"
+            fix_instructions = f"Update your planner_node function to use the {working_methods[0]} approach"
+        else:
+            recommendation = "❌ CRITICAL: No working methods found - planner_node will continue to fail"
+            overall_status = "critical_issue"
+            fix_instructions = "Check Vertex AI configuration and Plan model availability"
+        
+        return {
+            "status": overall_status,
+            "planner_llm_type": planner_llm_type,
+            "llm_class": type(base_llm).__name__,
+            "test_results": test_results,
+            "working_methods": working_methods,
+            "recommendation": recommendation,
+            "fix_instructions": fix_instructions,
+            "message": "Check application logs for detailed diagnostic output"
+        }
+        
+    except Exception as e:
+        error_msg = f"Planner test failed: {str(e)}"
+        logger.error(error_msg)
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_msg)
+
+# ============================================================================
+# EXISTING DEERFLOW ENDPOINTS (UNCHANGED)
+# ============================================================================
 
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest):
