@@ -78,190 +78,7 @@ app.add_middleware(
 
 graph = build_graph_with_memory()
 
-# 🔧 DIAGNOSTIC ENDPOINTS - Added for comprehensive system testing
 
-@app.get("/api/diagnostics/health")
-async def diagnostic_health():
-    """Basic health check for the system."""
-    try:
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
-            "service": "deerflow-backend",
-            "version": "0.1.0"
-        }
-    except Exception as e:
-        logger.exception(f"Health check failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Health check failed")
-
-@app.get("/api/diagnostics/environment")
-async def diagnostic_environment():
-    """Check environment configuration and deployment state"""
-    try:
-        logger.info("🧪 Running environment diagnostics...")
-        
-        # Environment variables check
-        env_vars = verify_environment_variables()
-        
-        # Git deployment information
-        git_info = {}
-        try:
-            git_info["commit_hash"] = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd="/app"
-            ).decode().strip()[:8]
-            git_info["branch"] = subprocess.check_output(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd="/app"
-            ).decode().strip()
-            git_info["status"] = "available"
-        except Exception as git_error:
-            git_info = {"status": "unavailable", "error": str(git_error)}
-        
-        # System information
-        system_info = {
-            "python_version": sys.version,
-            "hostname": os.getenv("HOSTNAME", "unknown"),
-            "working_directory": os.getcwd(),
-            "environment": os.getenv("NODE_ENV", "unknown")
-        }
-        
-        return {
-            "status": "success",
-            "timestamp": datetime.now().isoformat(),
-            "environment_variables": env_vars,
-            "git_deployment": git_info,
-            "system_info": system_info
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ Environment diagnostic failed: {e}")
-        return {
-            "status": "error",
-            "timestamp": datetime.now().isoformat(),
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }
-
-@app.get("/api/diagnostics/llm-test")
-async def diagnostic_llm_test():
-    """Test all LLM configurations with Vertex AI"""
-    try:
-        logger.info("🧪 Starting comprehensive LLM diagnostic...")
-        
-        # Environment check first
-        env_status = verify_environment_variables()
-        
-        # Test Vertex AI configuration
-        vertex_results = test_vertex_ai_configuration()
-        
-        # Cache information
-        cache_info = get_cached_llm_info()
-        
-        # Provider information for each agent type
-        agent_providers = {}
-        from src.config.agents import AGENT_LLM_MAP
-        for agent_name, llm_type in AGENT_LLM_MAP.items():
-            try:
-                provider_info = get_provider_info(llm_type)
-                agent_providers[agent_name] = provider_info
-            except Exception as e:
-                agent_providers[agent_name] = {"error": str(e)}
-        
-        return {
-            "status": "success",
-            "timestamp": datetime.now().isoformat(),
-            "environment_check": env_status,
-            "vertex_ai_tests": vertex_results,
-            "cache_information": cache_info,
-            "agent_providers": agent_providers
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ LLM diagnostic test failed: {e}")
-        return {
-            "status": "error", 
-            "timestamp": datetime.now().isoformat(),
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }
-
-@app.get("/api/diagnostics/planner-test")
-async def diagnostic_planner_test():
-    """Test the planner functionality."""
-    try:
-        # Import necessary modules
-        from src.graph.nodes import AGENT_LLM_MAP
-        from src.graph.state import Plan
-        from langchain_core.utils.function_calling import get_structured_output_llm
-        
-        # Test LLM availability
-        planner_llm = AGENT_LLM_MAP.get("planner")
-        if not planner_llm:
-            return {"status": "error", "message": "Planner LLM not configured"}
-            
-        # Test structured output
-        structured_llm = get_structured_output_llm(planner_llm, Plan)
-        
-        # Simple test message
-        test_messages = [{"role": "user", "content": "Create a simple research plan about AI"}]
-        response = structured_llm.invoke(test_messages)
-        
-        return {
-            "status": "success",
-            "planner_llm": str(type(planner_llm).__name__),
-            "structured_output": "working",
-            "response_type": str(type(response).__name__)
-        }
-    except Exception as e:
-        logger.exception(f"Planner test failed: {str(e)}")
-        return {
-            "status": "error", 
-            "message": str(e),
-            "error_type": str(type(e).__name__)
-        }
-
-@app.get("/api/diagnostics/workflow-test") 
-async def diagnostic_workflow_test():
-    """Test basic workflow functionality."""
-    try:
-        # Test graph building
-        from src.graph.builder import build_graph_with_memory
-        test_graph = build_graph_with_memory()
-        
-        return {
-            "status": "success",
-            "graph_built": True,
-            "graph_type": str(type(test_graph).__name__)
-        }
-    except Exception as e:
-        logger.exception(f"Workflow test failed: {str(e)}")
-        return {
-            "status": "error",
-            "message": str(e),
-            "error_type": str(type(e).__name__)
-        }
-
-@app.get("/api/diagnostics/environment")
-async def diagnostic_environment():
-    """Check environment variables and configuration."""
-    try:
-        env_status = {
-            "google_project": bool(os.getenv("GOOGLE_CLOUD_PROJECT")),
-            "google_credentials": bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS")),
-            "vertex_location": bool(os.getenv("VERTEX_AI_LOCATION")),
-            "gemini_basic": bool(os.getenv("GEMINI_BASIC_MODEL")),
-            "tavily_key": bool(os.getenv("TAVILY_API_KEY")),
-        }
-        
-        return {
-            "status": "success",
-            "environment": env_status,
-            "all_configured": all(env_status.values())
-        }
-    except Exception as e:
-        logger.exception(f"Environment check failed: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-# 🔧 END DIAGNOSTIC ENDPOINTS
 
 @app.post("/api/chat/stream")
 async def chat_stream(request: ChatRequest):
@@ -598,3 +415,165 @@ async def rag_resources(request: Annotated[RAGResourceRequest, Query()]):
     if retriever:
         return RAGResourcesResponse(resources=retriever.list_resources(request.query))
     return RAGResourcesResponse(resources=[])
+
+# 🔧 DIAGNOSTIC ENDPOINTS - Added for comprehensive system testing
+# ════════════════════════════════════════════════════════════════
+# 🧬 DIAGNOSTIC ENDPOINTS - ADD AFTER EXISTING ENDPOINTS
+# ════════════════════════════════════════════════════════════════
+
+@app.get("/api/diagnostics/health")
+async def diagnostic_health():
+    """Basic health check for the system."""
+    try:
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "service": "deerflow-backend",
+            "version": "0.1.0"
+        }
+    except Exception as e:
+        logger.exception(f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Health check failed")
+
+@app.get("/api/diagnostics/environment")
+async def diagnostic_environment():
+    """Check environment variables and configuration."""
+    try:
+        env_status = {
+            "google_project": bool(os.getenv("GOOGLE_CLOUD_PROJECT")),
+            "google_credentials": bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS")),
+            "vertex_location": bool(os.getenv("VERTEX_AI_LOCATION")),
+            "gemini_basic": bool(os.getenv("GEMINI_BASIC_MODEL")),
+            "tavily_key": bool(os.getenv("TAVILY_API_KEY")),
+        }
+        
+        return {
+            "status": "success",
+            "environment": env_status,
+            "all_configured": all(env_status.values())
+        }
+    except Exception as e:
+        logger.exception(f"Environment check failed: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/diagnostics/llm-test")
+async def diagnostic_llm_test():
+    """Test all LLM configurations with Vertex AI"""
+    try:
+        logger.info("🧪 Starting comprehensive LLM diagnostic...")
+        
+        # Environment check first
+        env_status = verify_environment_variables()
+        
+        # Test Vertex AI configuration
+        vertex_results = test_vertex_ai_configuration()
+        
+        # Cache information
+        cache_info = get_cached_llm_info()
+        
+        # Provider information for each agent type
+        agent_providers = {}
+        from src.config.agents import AGENT_LLM_MAP
+        for agent_name, llm_type in AGENT_LLM_MAP.items():
+            try:
+                provider_info = get_provider_info(llm_type)
+                agent_providers[agent_name] = provider_info
+            except Exception as e:
+                agent_providers[agent_name] = {"error": str(e)}
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "environment_check": env_status,
+            "vertex_ai_tests": vertex_results,
+            "cache_information": cache_info,
+            "agent_providers": agent_providers
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ LLM diagnostic test failed: {e}")
+        return {
+            "status": "error", 
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+@app.get("/api/diagnostics/planner-test")
+async def diagnostic_planner_test():
+    """Test the planner functionality."""
+    try:
+        # Import necessary modules
+        from src.graph.nodes import AGENT_LLM_MAP
+        from src.graph.state import Plan
+        from langchain_core.utils.function_calling import get_structured_output_llm
+        
+        # Test LLM availability
+        planner_llm = AGENT_LLM_MAP.get("planner")
+        if not planner_llm:
+            return {"status": "error", "message": "Planner LLM not configured"}
+            
+        # Test structured output
+        structured_llm = get_structured_output_llm(planner_llm, Plan)
+        
+        # Simple test message
+        test_messages = [{"role": "user", "content": "Create a simple research plan about AI"}]
+        response = structured_llm.invoke(test_messages)
+        
+        return {
+            "status": "success",
+            "planner_llm": str(type(planner_llm).__name__),
+            "structured_output": "working",
+            "response_type": str(type(response).__name__)
+        }
+    except Exception as e:
+        logger.exception(f"Planner test failed: {str(e)}")
+        return {
+            "status": "error", 
+            "message": str(e),
+            "error_type": str(type(e).__name__)
+        }
+
+@app.get("/api/diagnostics/workflow-test") 
+async def diagnostic_workflow_test():
+    """Test basic workflow functionality."""
+    try:
+        # Test graph building
+        from src.graph.builder import build_graph_with_memory
+        test_graph = build_graph_with_memory()
+        
+        return {
+            "status": "success",
+            "graph_built": True,
+            "graph_type": str(type(test_graph).__name__)
+        }
+    except Exception as e:
+        logger.exception(f"Workflow test failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "error_type": str(type(e).__name__)
+        }
+
+@app.get("/api/diagnostics/environment")
+async def diagnostic_environment():
+    """Check environment variables and configuration."""
+    try:
+        env_status = {
+            "google_project": bool(os.getenv("GOOGLE_CLOUD_PROJECT")),
+            "google_credentials": bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS")),
+            "vertex_location": bool(os.getenv("VERTEX_AI_LOCATION")),
+            "gemini_basic": bool(os.getenv("GEMINI_BASIC_MODEL")),
+            "tavily_key": bool(os.getenv("TAVILY_API_KEY")),
+        }
+        
+        return {
+            "status": "success",
+            "environment": env_status,
+            "all_configured": all(env_status.values())
+        }
+    except Exception as e:
+        logger.exception(f"Environment check failed: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+# 🔧 END DIAGNOSTIC ENDPOINTS
