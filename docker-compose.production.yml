@@ -90,13 +90,13 @@ services:
       
       # === FIX: EXPLICIT SERVICE ASSIGNMENTS ===
       # Diagnostic Routing - ASSIGN SPECIFIC SERVICE
+      # Diagnostics
       - 'traefik.http.routers.deer-diagnostics-https.entryPoints=https'
       - 'traefik.http.routers.deer-diagnostics-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api/diagnostics`)'
       - 'traefik.http.routers.deer-diagnostics-https.service=deer-api-service'
       - 'traefik.http.routers.deer-diagnostics-https.tls=true'
       - 'traefik.http.routers.deer-diagnostics-https.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.deer-diagnostics-https.priority=250'
-      - 'traefik.http.routers.deer-diagnostics-https.middlewares=deer-request-id,deer-rate-limit'
      
       # API HTTPS Routing (General API - HTTP/2 OK)
       - 'traefik.http.routers.deer-api-https.entryPoints=https'
@@ -105,7 +105,6 @@ services:
       - 'traefik.http.routers.deer-api-https.tls=true'
       - 'traefik.http.routers.deer-api-https.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.deer-api-https.priority=200'
-      - 'traefik.http.routers.deer-api-https.middlewares=deer-request-id,deer-rate-limit'
       
       # 🔧 STREAMING ENDPOINT - Force HTTP/1.1
       - 'traefik.http.routers.deer-stream-https.entryPoints=https'
@@ -114,7 +113,6 @@ services:
       - 'traefik.http.routers.deer-stream-https.tls=true'
       - 'traefik.http.routers.deer-stream-https.tls.certresolver=letsencrypt'
       - 'traefik.http.routers.deer-stream-https.priority=300'
-      - 'traefik.http.routers.deer-stream-https.middlewares=force-http1,deer-request-id'
       
       # Core Middleware Definitions
       - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
@@ -125,18 +123,12 @@ services:
       - 'traefik.http.services.deer-api-service.loadbalancer.server.port=8000'
       
       # HTTP to HTTPS Redirect
-      # HTTP to HTTPS Redirect - ASSIGN SPECIFIC SERVICE
       - 'traefik.http.routers.deer-api-http.entryPoints=http'
       - 'traefik.http.routers.deer-api-http.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
       - 'traefik.http.routers.deer-api-http.service=deer-api-service'
       - 'traefik.http.routers.deer-api-http.middlewares=redirect-to-https'
 
-      # 1. Request ID Plugin ⭐⭐⭐⭐⭐ 2. Real IP Plugin ⭐⭐⭐⭐ 3. Rate Limiting Plugin ⭐⭐⭐⭐
-      - 'traefik.http.middlewares.deer-request-id.plugin.requestid.header=X-Request-ID'
-      - 'traefik.http.middlewares.deer-request-id.plugin.requestid.generate=true'
-      - 'traefik.http.middlewares.deer-rate-limit.plugin.ratelimit.burst=50'
-      - 'traefik.http.middlewares.deer-rate-limit.plugin.ratelimit.average=100'
-      - 'traefik.http.middlewares.deer-rate-limit.plugin.ratelimit.period=60s'
+      
       
     command: >
       sh -c "
