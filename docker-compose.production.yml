@@ -121,6 +121,11 @@ services:
       
       # Service Definitions
       - 'traefik.http.services.deer-api-service.loadbalancer.server.port=8000'
+
+     
+      # COOLIFY AUTO-GENERATED ROUTER OVERRIDES # 🆕 ADD THESE 3 LINES HERE:
+      - 'traefik.http.routers.http-0-wwk4sg88488c8sg8ksco8k04-backend.service=deer-api-service'
+      - 'traefik.http.routers.https-0-wwk4sg88488c8sg8ksco8k04-backend.service=deer-api-service'
       
       # HTTP to HTTPS Redirect
       - 'traefik.http.routers.deer-api-http.entryPoints=http'
