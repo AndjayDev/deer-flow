@@ -6,7 +6,7 @@ import logging
 import os
 from typing import Annotated, Literal, List
 
-from langchain_core.output_parsers import PydanticToolsParser
+# from langchain_core.output_parsers import PydanticToolsParser <==> PydanticToolsParser incompatible with Vertex AI Confidence: 85%
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
@@ -148,23 +148,12 @@ def planner_node(
         return Command(goto="reporter")
 
     # --- AVERY'S EVIDENCE-BASED FIX (Solution 2 from the document): START ---
+    # 🧬 AVERY ITZAK: COMPREHENSIVE SYSTEMATIC DIAGNOSIS PROTOCOL - SWITCH FRO PydanticToolsParser TO get_structured_output_llm 
+    #  https://docs.google.com/document/d/1QEHaE0kCuOxg6Vu75nUzCoXSwCSQnZUITKYH7JK4x1c/edit?tab=t.0
     try:
-        # Step 1: Get the base LLM for the planner.
-        base_llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
+        structured_llm = get_structured_output_llm(AGENT_LLM_MAP["planner"], Plan)
+        response_plan_object = structured_llm.invoke(messages)
 
-        # Step 2: Bind the Plan schema as a tool, forcing the model to use it.
-        # This is the most reliable method for Gemini according to the intel.
-        llm_with_tools = base_llm.bind_tools([Plan], tool_choice=Plan)
-        
-        # Step 3: Explicitly define the parser that knows how to handle tool calls.
-        # We only care about the first tool call that matches our 'Plan' schema.
-        parser = PydanticToolsParser(tools=[Plan], first_tool_only=True)
-
-        # Step 4: Create a chain that pipes the LLM's tool-calling output directly into our parser.
-        chain = llm_with_tools | parser
-        
-        # Step 5: Invoke the chain. The output will be a clean Pydantic 'Plan' object.
-        response_plan_object = chain.invoke(messages)
 
         if not isinstance(response_plan_object, Plan):
             raise TypeError(f"Parser chain did not return a valid 'Plan' object. Got: {type(response_plan_object)}")
