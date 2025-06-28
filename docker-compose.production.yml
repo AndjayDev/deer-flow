@@ -125,6 +125,11 @@ services:
       - 'traefik.http.routers.deer-api-http.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`)'
       - 'traefik.http.routers.deer-api-http.middlewares=redirect-to-https'
       - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
+
+      # 1. Request ID Plugin ⭐⭐⭐⭐⭐ 2. Real IP Plugin ⭐⭐⭐⭐ 3. Rate Limiting Plugin ⭐⭐⭐⭐
+      - 'traefik.http.middlewares.deer-request-id.plugin.requestid.header=X-Request-ID'
+      - 'traefik.http.middlewares.deer-rate-limit.plugin.ratelimit.burst=50'
+      - 'traefik.http.routers.deer-diagnostics-https.middlewares=deer-request-id,deer-rate-limit'
       
     command: >
       sh -c "
