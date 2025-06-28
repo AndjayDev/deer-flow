@@ -100,7 +100,7 @@ services:
      
       # API HTTPS Routing (General API - HTTP/2 OK)
       - 'traefik.http.routers.deer-api-https.entryPoints=https'
-      - 'traefik.http.routers.deer-api-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`) && !PathPrefix(`/api/chat/stream`) && !PathPrefix(`/api/diagnostics`)'
+      - 'traefik.http.routers.deer-api-https.rule=Host(`deer-flow.cyberteam.click`) && PathPrefix(`/api`) && !PathPrefix(`/api/chat/stream`)'
       - 'traefik.http.routers.deer-api-https.service=deer-api-service'
       - 'traefik.http.routers.deer-api-https.tls=true'
       - 'traefik.http.routers.deer-api-https.tls.certresolver=letsencrypt'
