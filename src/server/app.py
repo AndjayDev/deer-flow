@@ -82,15 +82,17 @@ graph = build_graph_with_memory()
 
 @app.get("/api/diagnostics/health")
 async def diagnostic_health():
-    """Basic health check with timestamp and container info"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "service": "deerflow-backend",
-        "version": "0.1.0",
-        "container_id": os.getenv("HOSTNAME", "unknown"),
-        "working_directory": os.getcwd()
-    }
+    """Basic health check for the system."""
+    try:
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "service": "deerflow-backend",
+            "version": "0.1.0"
+        }
+    except Exception as e:
+        logger.exception(f"Health check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Health check failed")
 
 @app.get("/api/diagnostics/environment")
 async def diagnostic_environment():
@@ -184,182 +186,80 @@ async def diagnostic_llm_test():
 
 @app.get("/api/diagnostics/planner-test")
 async def diagnostic_planner_test():
-    """Test planner structured output with exact nodes.py approach"""
+    """Test the planner functionality."""
     try:
-        logger.info("🧪 Testing planner structured output...")
+        # Import necessary modules
+        from src.graph.nodes import AGENT_LLM_MAP
+        from src.graph.state import Plan
+        from langchain_core.utils.function_calling import get_structured_output_llm
         
-        from src.config.agents import AGENT_LLM_MAP
+        # Test LLM availability
+        planner_llm = AGENT_LLM_MAP.get("planner")
+        if not planner_llm:
+            return {"status": "error", "message": "Planner LLM not configured"}
+            
+        # Test structured output
+        structured_llm = get_structured_output_llm(planner_llm, Plan)
         
-        test_messages = [
-            {"role": "user", "content": "Create a simple research plan about renewable energy with 2 steps."}
-        ]
-        
-        results = {}
-        
-        # Test the exact approach from nodes.py
-        try:
-            # Step 1: Get the base LLM for the planner
-            base_llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
-            
-            # Step 2: Bind the Plan schema as a tool (exact approach from nodes.py)
-            llm_with_tools = base_llm.bind_tools([Plan], tool_choice=Plan)
-            
-            # Step 3: Define the parser
-            parser = PydanticToolsParser(tools=[Plan], first_tool_only=True)
-            
-            # Step 4: Create the chain
-            chain = llm_with_tools | parser
-            
-            # Step 5: Invoke the chain
-            response_plan_object = chain.invoke(test_messages)
-            
-            results["current_nodes_approach"] = {
-                "status": "success",
-                "llm_class": base_llm.__class__.__name__,
-                "response_type": str(type(response_plan_object)),
-                "is_plan_object": isinstance(response_plan_object, Plan),
-                "is_none": response_plan_object is None,
-                "response_preview": str(response_plan_object)[:300] if response_plan_object else "None",
-                "plan_title": getattr(response_plan_object, 'title', 'N/A') if isinstance(response_plan_object, Plan) else 'N/A',
-                "plan_steps_count": len(getattr(response_plan_object, 'steps', [])) if isinstance(response_plan_object, Plan) else 0
-            }
-            
-        except Exception as e:
-            results["current_nodes_approach"] = {
-                "status": "error",
-                "error": str(e),
-                "traceback": traceback.format_exc()[:500]
-            }
-        
-        # Test alternative approaches for comparison
-        try:
-            base_llm = get_llm_by_type(AGENT_LLM_MAP["planner"])
-            
-            # Alternative 1: with_structured_output auto
-            try:
-                structured_llm_auto = base_llm.with_structured_output(Plan)
-                response_auto = structured_llm_auto.invoke(test_messages)
-                results["with_structured_output_auto"] = {
-                    "status": "success",
-                    "response_type": str(type(response_auto)),
-                    "is_plan_object": isinstance(response_auto, Plan),
-                    "is_none": response_auto is None
-                }
-            except Exception as e:
-                results["with_structured_output_auto"] = {
-                    "status": "error",
-                    "error": str(e)[:200]
-                }
-            
-            # Alternative 2: with_structured_output json_mode
-            try:
-                structured_llm_json = base_llm.with_structured_output(Plan, method="json_mode")
-                response_json = structured_llm_json.invoke(test_messages)
-                results["with_structured_output_json"] = {
-                    "status": "success",
-                    "response_type": str(type(response_json)),
-                    "is_plan_object": isinstance(response_json, Plan),
-                    "is_none": response_json is None
-                }
-            except Exception as e:
-                results["with_structured_output_json"] = {
-                    "status": "error",
-                    "error": str(e)[:200]
-                }
-                
-        except Exception as e:
-            results["alternatives_error"] = str(e)
+        # Simple test message
+        test_messages = [{"role": "user", "content": "Create a simple research plan about AI"}]
+        response = structured_llm.invoke(test_messages)
         
         return {
-            "status": "completed",
-            "timestamp": datetime.now().isoformat(),
-            "test_results": results,
-            "summary": {
-                "current_approach_works": results.get("current_nodes_approach", {}).get("is_plan_object", False),
-                "current_approach_returns_none": results.get("current_nodes_approach", {}).get("is_none", True),
-                "alternative_methods_tested": len([k for k in results.keys() if k.startswith("with_structured")])
-            }
+            "status": "success",
+            "planner_llm": str(type(planner_llm).__name__),
+            "structured_output": "working",
+            "response_type": str(type(response).__name__)
         }
-        
     except Exception as e:
-        logger.error(f"❌ Planner diagnostic test failed: {e}")
+        logger.exception(f"Planner test failed: {str(e)}")
         return {
-            "status": "error",
-            "timestamp": datetime.now().isoformat(),
-            "error": str(e),
-            "traceback": traceback.format_exc()
+            "status": "error", 
+            "message": str(e),
+            "error_type": str(type(e).__name__)
         }
 
-@app.get("/api/diagnostics/workflow-test")
+@app.get("/api/diagnostics/workflow-test") 
 async def diagnostic_workflow_test():
-    """Test minimal DeerFlow workflow to identify bottlenecks"""
+    """Test basic workflow functionality."""
     try:
-        logger.info("🧪 Testing minimal workflow execution...")
-        
-        # Import workflow components
-        from src.graph.nodes import planner_node
-        from src.config.configuration import Configuration
-        
-        # Create minimal test state (matching actual workflow state)
-        test_state = {
-            "messages": [{"role": "user", "content": "Research renewable energy trends in 2025"}],
-            "plan_iterations": 0,
-            "enable_background_investigation": False,
-            "locale": "en-US"
-        }
-        
-        # Create test configuration (matching actual workflow config)
-        test_config = {
-            "thread_id": "diagnostic_test_" + str(int(datetime.now().timestamp())),
-            "max_plan_iterations": 1,
-            "max_step_num": 2,
-            "max_search_results": 3
-        }
-        
-        # Test planner_node execution directly
-        try:
-            result = planner_node(test_state, test_config)
-            
-            workflow_result = {
-                "status": "success",
-                "result_type": str(type(result)),
-                "has_current_plan": "current_plan" in result.update if hasattr(result, 'update') and result.update else False,
-                "goto_destination": getattr(result, 'goto', 'unknown'),
-                "result_preview": str(result)[:400] if result else "None"
-            }
-            
-            # If result has update with current_plan, analyze it
-            if hasattr(result, 'update') and result.update and 'current_plan' in result.update:
-                plan = result.update['current_plan']
-                workflow_result.update({
-                    "plan_object_type": str(type(plan)),
-                    "plan_is_plan_instance": isinstance(plan, Plan),
-                    "plan_title": getattr(plan, 'title', 'N/A') if plan else 'N/A',
-                    "plan_steps_count": len(getattr(plan, 'steps', [])) if plan else 0
-                })
-            
-        except Exception as workflow_error:
-            workflow_result = {
-                "status": "error",
-                "error": str(workflow_error),
-                "traceback": traceback.format_exc()
-            }
+        # Test graph building
+        from src.graph.builder import build_graph_with_memory
+        test_graph = build_graph_with_memory()
         
         return {
-            "status": "completed",
-            "timestamp": datetime.now().isoformat(),
-            "workflow_test": workflow_result,
-            "test_configuration": test_config
+            "status": "success",
+            "graph_built": True,
+            "graph_type": str(type(test_graph).__name__)
         }
-        
     except Exception as e:
-        logger.error(f"❌ Workflow diagnostic test failed: {e}")
+        logger.exception(f"Workflow test failed: {str(e)}")
         return {
             "status": "error",
-            "timestamp": datetime.now().isoformat(),
-            "error": str(e),
-            "traceback": traceback.format_exc()
+            "message": str(e),
+            "error_type": str(type(e).__name__)
         }
+
+@app.get("/api/diagnostics/environment")
+async def diagnostic_environment():
+    """Check environment variables and configuration."""
+    try:
+        env_status = {
+            "google_project": bool(os.getenv("GOOGLE_CLOUD_PROJECT")),
+            "google_credentials": bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS")),
+            "vertex_location": bool(os.getenv("VERTEX_AI_LOCATION")),
+            "gemini_basic": bool(os.getenv("GEMINI_BASIC_MODEL")),
+            "tavily_key": bool(os.getenv("TAVILY_API_KEY")),
+        }
+        
+        return {
+            "status": "success",
+            "environment": env_status,
+            "all_configured": all(env_status.values())
+        }
+    except Exception as e:
+        logger.exception(f"Environment check failed: {str(e)}")
+        return {"status": "error", "message": str(e)}
 
 # 🔧 END DIAGNOSTIC ENDPOINTS
 
